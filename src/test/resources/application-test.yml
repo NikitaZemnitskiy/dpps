@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: payment-service-test
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: https://localhost/.well-known/jwks.json
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+server:
+  port: 0
+
+ignite:
+  instance:
+    name: payment-ignite-test
+  discovery:
+    addresses: 127.0.0.1:47500..47509
+  client-mode: false
+
+logging:
+  level:
+    org.apache.ignite: WARN
+    com.zemnitskiy.dpps: DEBUG

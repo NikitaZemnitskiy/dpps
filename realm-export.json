@@ -1,0 +1,41 @@
+{
+  "id": "payment-system",
+  "realm": "payment-system",
+  "enabled": true,
+  "users": [
+    {
+      "username": "user",
+      "email": "user@example.com",
+      "firstName": "Test",
+      "lastName": "User",
+      "enabled": true,
+      "emailVerified": true,
+      "requiredActions": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "user",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-payment-system"
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "payment-client",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ]
+    }
+  ]
+}

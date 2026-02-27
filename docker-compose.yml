@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.2
+    container_name: keycloak
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+      - KC_HOSTNAME_STRICT=false
+      - KC_HOSTNAME_STRICT_HTTPS=false
+      - KC_HTTP_PORT=8090
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
+    command:
+      - start-dev
+      - --import-realm
+    healthcheck:
+      test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/localhost/8090"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - dpps-network
+
+  app-node-1:
+    build: .
+    container_name: app-node-1
+    environment:
+      - KEYCLOAK_JWK_URI=http://keycloak:8090/realms/payment-system/protocol/openid-connect/certs
+      - IGNITE_INSTANCE_NAME=payment-ignite-1
+      - IGNITE_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    networks:
+      - dpps-network
+
+  app-node-2:
+    build: .
+    container_name: app-node-2
+    environment:
+      - KEYCLOAK_JWK_URI=http://keycloak:8090/realms/payment-system/protocol/openid-connect/certs
+      - IGNITE_INSTANCE_NAME=payment-ignite-2
+      - IGNITE_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
+    depends_on:
+      app-node-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    networks:
+      - dpps-network
+
+  app-node-3:
+    build: .
+    container_name: app-node-3
+    environment:
+      - KEYCLOAK_JWK_URI=http://keycloak:8090/realms/payment-system/protocol/openid-connect/certs
+      - IGNITE_INSTANCE_NAME=payment-ignite-3
+      - IGNITE_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
+    depends_on:
+      app-node-2:
+        condition: service_healthy
+    networks:
+      - dpps-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app-node-1
+      - app-node-2
+      - app-node-3
+    networks:
+      - dpps-network
+
+networks:
+  dpps-network:
+    driver: bridge

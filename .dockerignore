@@ -1,0 +1,8 @@
+.idea
+target
+*.iml
+.git
+.mvn/wrapper/maven-wrapper.jar
+node_modules
+*.md
+.claude
