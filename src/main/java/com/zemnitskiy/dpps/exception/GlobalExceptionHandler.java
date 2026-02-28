@@ -17,16 +17,18 @@ import java.time.format.DateTimeParseException;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    private static final String BAD_REQUEST = "Bad Request";
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, "Bad Request", ex.getMessage()));
+                .body(new ErrorResponse(400, BAD_REQUEST, ex.getMessage()));
     }
 
     @ExceptionHandler(DateTimeParseException.class)
     public ResponseEntity<ErrorResponse> handleDateTimeParse(DateTimeParseException ex) {
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, "Bad Request",
+                .body(new ErrorResponse(400, BAD_REQUEST,
                         "Invalid date-time format. Expected ISO 8601 (e.g. 2026-02-20T12:00)"));
     }
 
@@ -39,14 +41,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException ex) {
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, "Bad Request",
+                .body(new ErrorResponse(400, BAD_REQUEST,
                         "Required parameter '" + ex.getParameterName() + "' is missing"));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, "Bad Request",
+                .body(new ErrorResponse(400, BAD_REQUEST,
                         "Invalid value for parameter '" + ex.getName() + "': " + ex.getValue()));
     }
 

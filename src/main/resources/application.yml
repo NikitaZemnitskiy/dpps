@@ -5,7 +5,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${KEYCLOAK_JWK_URI:http://localhost:8090/realms/payment-system/protocol/openid-connect/certs}
+          jwk-set-uri: http://keycloak:8090/realms/payment-system/protocol/openid-connect/certs
   servlet:
     multipart:
       max-file-size: 100MB
@@ -19,7 +19,6 @@ ignite:
     name: ${IGNITE_INSTANCE_NAME:payment-ignite}
   discovery:
     addresses: ${IGNITE_DISCOVERY_ADDRESSES:127.0.0.1:47500..47509}
-  client-mode: false
 
 management:
   endpoints:

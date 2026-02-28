@@ -26,17 +26,12 @@ public class IgniteConfig {
     @Value("${ignite.discovery.addresses}")
     private String discoveryAddresses;
 
-    @Value("${ignite.client-mode}")
-    private boolean clientMode;
-
     @Bean
     public IgniteConfiguration igniteConfiguration() {
         IgniteConfiguration cfg = new IgniteConfiguration();
         cfg.setIgniteInstanceName(instanceName);
-        cfg.setClientMode(clientMode);
 
         cfg.setFailureDetectionTimeout(30000);
-        cfg.setClientFailureDetectionTimeout(30000);
 
         CacheConfiguration<String, Payment> cacheCfg = new CacheConfiguration<>(PAYMENTS_CACHE);
         cacheCfg.setCacheMode(CacheMode.PARTITIONED);

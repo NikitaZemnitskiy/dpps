@@ -19,7 +19,6 @@ ignite:
     name: payment-ignite-test
   discovery:
     addresses: 127.0.0.1:47500..47509
-  client-mode: false
 
 logging:
   level:

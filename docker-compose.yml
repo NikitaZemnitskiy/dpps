@@ -32,7 +32,6 @@ services:
     build: .
     container_name: app-node-1
     environment:
-      - KEYCLOAK_JWK_URI=http://keycloak:8090/realms/payment-system/protocol/openid-connect/certs
       - IGNITE_INSTANCE_NAME=payment-ignite-1
       - IGNITE_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
     depends_on:
@@ -51,7 +50,6 @@ services:
     build: .
     container_name: app-node-2
     environment:
-      - KEYCLOAK_JWK_URI=http://keycloak:8090/realms/payment-system/protocol/openid-connect/certs
       - IGNITE_INSTANCE_NAME=payment-ignite-2
       - IGNITE_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
     depends_on:
@@ -70,7 +68,6 @@ services:
     build: .
     container_name: app-node-3
     environment:
-      - KEYCLOAK_JWK_URI=http://keycloak:8090/realms/payment-system/protocol/openid-connect/certs
       - IGNITE_INSTANCE_NAME=payment-ignite-3
       - IGNITE_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
     depends_on:

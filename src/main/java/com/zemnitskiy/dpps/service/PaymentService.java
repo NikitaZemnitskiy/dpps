@@ -90,7 +90,7 @@ public class PaymentService {
     }
 
     public List<Payment> getPayments(String from, String to) {
-        log.info("In getPayments");
+        log.info("In getPayments " + ignite.name());
         validateTimeRange(from, to);
 
         ScanQuery<String, Payment> query = new ScanQuery<>(new PaymentTimeRangeFilter(from, to));
@@ -162,10 +162,22 @@ public class PaymentService {
 
         boolean valid = true;
 
-        if (isBlank(dateTime)) { result.incrementError("datetime"); valid = false; }
-        if (isBlank(sender)) { result.incrementError("sender"); valid = false; }
-        if (isBlank(receiver)) { result.incrementError("receiver"); valid = false; }
-        if (isBlank(id)) { result.incrementError("id"); valid = false; }
+        if (isBlank(dateTime)) {
+            result.incrementError("datetime");
+            valid = false;
+        }
+        if (isBlank(sender)) {
+            result.incrementError("sender");
+            valid = false;
+        }
+        if (isBlank(receiver)) {
+            result.incrementError("receiver");
+            valid = false;
+        }
+        if (isBlank(id)) {
+            result.incrementError("id");
+            valid = false;
+        }
 
         if (isBlank(valueStr)) {
             result.incrementError("value");
