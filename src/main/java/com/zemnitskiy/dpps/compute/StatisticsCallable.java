@@ -10,6 +10,7 @@ import org.apache.ignite.lang.IgniteCallable;
 import org.apache.ignite.resources.IgniteInstanceResource;
 
 import javax.cache.Cache;
+import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -22,6 +23,7 @@ import java.util.Map;
  */
 public class StatisticsCallable implements IgniteCallable<Map<String, PartialStats>>, Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     @IgniteInstanceResource
