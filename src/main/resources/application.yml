@@ -17,8 +17,6 @@ server:
 ignite:
   instance:
     name: ${IGNITE_INSTANCE_NAME:payment-ignite}
-  discovery:
-    addresses: ${IGNITE_DISCOVERY_ADDRESSES:127.0.0.1:47500..47509}
 
 management:
   endpoints:

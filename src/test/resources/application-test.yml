@@ -17,8 +17,6 @@ server:
 ignite:
   instance:
     name: payment-ignite-test
-  discovery:
-    addresses: 127.0.0.1:47500..47509
 
 logging:
   level:

@@ -33,7 +33,7 @@ services:
     container_name: app-node-1
     environment:
       - IGNITE_INSTANCE_NAME=payment-ignite-1
-      - IGNITE_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
+      - IGNITE_TCP_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
     depends_on:
       keycloak:
         condition: service_healthy
@@ -51,7 +51,7 @@ services:
     container_name: app-node-2
     environment:
       - IGNITE_INSTANCE_NAME=payment-ignite-2
-      - IGNITE_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
+      - IGNITE_TCP_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
     depends_on:
       app-node-1:
         condition: service_healthy
@@ -69,7 +69,7 @@ services:
     container_name: app-node-3
     environment:
       - IGNITE_INSTANCE_NAME=payment-ignite-3
-      - IGNITE_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
+      - IGNITE_TCP_DISCOVERY_ADDRESSES=app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
     depends_on:
       app-node-2:
         condition: service_healthy

@@ -7,13 +7,9 @@ import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
-import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
-import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.util.Arrays;
 
 @Configuration
 public class IgniteConfig {
@@ -22,9 +18,6 @@ public class IgniteConfig {
 
     @Value("${ignite.instance.name}")
     private String instanceName;
-
-    @Value("${ignite.discovery.addresses}")
-    private String discoveryAddresses;
 
     @Bean
     public IgniteConfiguration igniteConfiguration() {
@@ -38,12 +31,6 @@ public class IgniteConfig {
         cacheCfg.setBackups(1);
         cacheCfg.setAtomicityMode(CacheAtomicityMode.ATOMIC);
         cfg.setCacheConfiguration(cacheCfg);
-
-        TcpDiscoverySpi spi = new TcpDiscoverySpi();
-        TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
-        ipFinder.setAddresses(Arrays.asList(discoveryAddresses.split(",")));
-        spi.setIpFinder(ipFinder);
-        cfg.setDiscoverySpi(spi);
 
         return cfg;
     }
