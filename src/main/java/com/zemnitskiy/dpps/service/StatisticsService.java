@@ -36,52 +36,41 @@ public class StatisticsService {
                     merged.merge(key, stats, PartialStats::merge));
         }
 
-        StatisticsResponse response = new StatisticsResponse();
         Map<String, GroupStats> data = new LinkedHashMap<>();
-
         merged.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> {
-                    GroupStats group = buildGroupStats(entry.getValue(), metrics);
-                    data.put(entry.getKey(), group);
-                });
+                .forEach(entry -> data.put(entry.getKey(), buildGroupStats(entry.getValue(), metrics)));
 
-        response.setData(data);
-        return response;
+        return new StatisticsResponse(data);
     }
 
     private GroupStats buildGroupStats(PartialStats stats, Set<MetricCategory> metrics) {
-        GroupStats group = new GroupStats();
+        GeneralStats general = metrics.contains(MetricCategory.GENERAL)
+                ? new GeneralStats(stats.getCount())
+                : null;
 
-        if (metrics.contains(MetricCategory.GENERAL)) {
-            GeneralStats general = new GeneralStats();
-            general.setCount(stats.getCount());
-            group.setGeneral(general);
-        }
+        ValueStats value = metrics.contains(MetricCategory.VALUE)
+                ? new ValueStats(
+                        roundTo4(stats.getMinValue()),
+                        roundTo4(stats.getMaxValue()),
+                        roundTo4(stats.getSumValue()),
+                        roundTo4(stats.getAverageValue()))
+                : null;
 
-        if (metrics.contains(MetricCategory.VALUE)) {
-            ValueStats value = new ValueStats();
-            value.setMin(roundTo4(stats.getMinValue()));
-            value.setMax(roundTo4(stats.getMaxValue()));
-            value.setSum(roundTo4(stats.getSumValue()));
-            value.setAverage(roundTo4(stats.getAverageValue()));
-            group.setValue(value);
-        }
+        DateTimeStats dateTime = metrics.contains(MetricCategory.DATETIME)
+                ? buildDateTimeStats(stats)
+                : null;
 
-        if (metrics.contains(MetricCategory.DATETIME)) {
-            DateTimeStats dateTime = new DateTimeStats();
-            dateTime.setMin(stats.getMinDateTime());
-            dateTime.setMax(stats.getMaxDateTime());
+        return new GroupStats(general, value, dateTime);
+    }
 
-            long avgEpoch = stats.getAverageEpochSeconds();
-            LocalDateTime avgDt = LocalDateTime.ofInstant(
-                    Instant.ofEpochSecond(avgEpoch), ZoneOffset.UTC);
-            dateTime.setAverage(avgDt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    private DateTimeStats buildDateTimeStats(PartialStats stats) {
+        long avgEpoch = stats.getAverageEpochSeconds();
+        LocalDateTime avgDt = LocalDateTime.ofInstant(
+                Instant.ofEpochSecond(avgEpoch), ZoneOffset.UTC);
+        String avgFormatted = avgDt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
-            group.setDateTime(dateTime);
-        }
-
-        return group;
+        return new DateTimeStats(stats.getMinDateTime(), stats.getMaxDateTime(), avgFormatted);
     }
 
     private double roundTo4(double value) {

@@ -50,15 +50,9 @@ public class StatisticsCallable implements IgniteCallable<Map<String, PartialSta
             long epochSeconds = toEpochSeconds(p.getDateTime());
 
             switch (aggregation) {
-                case BY_DATE:
-                    accumulateByDate(localResult, p, epochSeconds);
-                    break;
-                case BY_BANK:
-                    accumulateByBank(localResult, p, epochSeconds);
-                    break;
-                case BY_CONNECTION:
-                    accumulateByConnection(localResult, p, epochSeconds);
-                    break;
+                case BY_DATE -> accumulateByDate(localResult, p, epochSeconds);
+                case BY_BANK -> accumulateByBank(localResult, p, epochSeconds);
+                case BY_CONNECTION -> accumulateByConnection(localResult, p, epochSeconds);
             }
         }
 

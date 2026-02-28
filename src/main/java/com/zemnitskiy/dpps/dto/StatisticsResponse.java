@@ -1,41 +1,25 @@
 package com.zemnitskiy.dpps.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.Data;
 
 import java.util.Map;
 
-@Data
-@JsonInclude(JsonInclude.Include.NON_NULL)
-public class StatisticsResponse {
+public record StatisticsResponse(Map<String, GroupStats> data) {
 
-    private Map<String, GroupStats> data;
-
-    @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class GroupStats {
-        private GeneralStats general;
-        private ValueStats value;
-        private DateTimeStats dateTime;
+    public record GroupStats(
+            GeneralStats general,
+            ValueStats value,
+            DateTimeStats dateTime
+    ) {
     }
 
-    @Data
-    public static class GeneralStats {
-        private long count;
+    public record GeneralStats(long count) {
     }
 
-    @Data
-    public static class ValueStats {
-        private double min;
-        private double max;
-        private double sum;
-        private double average;
+    public record ValueStats(double min, double max, double sum, double average) {
     }
 
-    @Data
-    public static class DateTimeStats {
-        private String min;
-        private String max;
-        private String average;
+    public record DateTimeStats(String min, String max, String average) {
     }
 }

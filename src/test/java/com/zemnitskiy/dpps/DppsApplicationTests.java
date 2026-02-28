@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.within;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -152,7 +151,7 @@ class DppsApplicationTests {
         DeleteResult deleteResult = objectMapper.readValue(
                 result.getResponse().getContentAsString(), DeleteResult.class);
 
-        assertThat(deleteResult.getDeletedCount()).isEqualTo(5);
+        assertThat(deleteResult.deletedCount()).isEqualTo(5);
     }
 
     @Test
@@ -166,7 +165,7 @@ class DppsApplicationTests {
         DeleteResult deleteResult = objectMapper.readValue(
                 result.getResponse().getContentAsString(), DeleteResult.class);
 
-        assertThat(deleteResult.getDeletedCount()).isEqualTo(15);
+        assertThat(deleteResult.deletedCount()).isEqualTo(15);
     }
 
     @Test
@@ -182,24 +181,24 @@ class DppsApplicationTests {
         StatisticsResponse response = objectMapper.readValue(
                 result.getResponse().getContentAsString(), StatisticsResponse.class);
 
-        Map<String, GroupStats> data = response.getData();
+        Map<String, GroupStats> data = response.data();
         assertThat(data).containsKeys("2026-02-20", "2026-02-21");
 
         // Test case 1: 2026-02-20
         GroupStats day20 = data.get("2026-02-20");
-        assertThat(day20.getGeneral().getCount()).isEqualTo(5);
-        assertThat(day20.getValue().getMin()).isEqualTo(50);
-        assertThat(day20.getValue().getMax()).isEqualTo(200);
-        assertThat(day20.getValue().getSum()).isEqualTo(500);
-        assertThat(day20.getValue().getAverage()).isEqualTo(100);
+        assertThat(day20.general().count()).isEqualTo(5);
+        assertThat(day20.value().min()).isEqualTo(50);
+        assertThat(day20.value().max()).isEqualTo(200);
+        assertThat(day20.value().sum()).isEqualTo(500);
+        assertThat(day20.value().average()).isEqualTo(100);
 
         // Test case 1: 2026-02-21
         GroupStats day21 = data.get("2026-02-21");
-        assertThat(day21.getGeneral().getCount()).isEqualTo(10);
-        assertThat(day21.getValue().getMin()).isEqualTo(50);
-        assertThat(day21.getValue().getMax()).isEqualTo(300);
-        assertThat(day21.getValue().getSum()).isEqualTo(1350);
-        assertThat(day21.getValue().getAverage()).isEqualTo(135);
+        assertThat(day21.general().count()).isEqualTo(10);
+        assertThat(day21.value().min()).isEqualTo(50);
+        assertThat(day21.value().max()).isEqualTo(300);
+        assertThat(day21.value().sum()).isEqualTo(1350);
+        assertThat(day21.value().average()).isEqualTo(135);
     }
 
     @Test
@@ -215,26 +214,26 @@ class DppsApplicationTests {
         StatisticsResponse response = objectMapper.readValue(
                 result.getResponse().getContentAsString(), StatisticsResponse.class);
 
-        Map<String, GroupStats> data = response.getData();
+        Map<String, GroupStats> data = response.data();
 
         // Bank A: Count 11, Sum -300
         GroupStats bankA = data.get("Bank A");
-        assertThat(bankA.getGeneral().getCount()).isEqualTo(11);
-        assertThat(bankA.getValue().getMin()).isEqualTo(-300);
-        assertThat(bankA.getValue().getMax()).isEqualTo(200);
-        assertThat(bankA.getValue().getSum()).isEqualTo(-300);
-        assertThat(bankA.getDateTime().getMin()).isEqualTo("2026-02-20T12:00");
-        assertThat(bankA.getDateTime().getMax()).isEqualTo("2026-02-21T23:00");
+        assertThat(bankA.general().count()).isEqualTo(11);
+        assertThat(bankA.value().min()).isEqualTo(-300);
+        assertThat(bankA.value().max()).isEqualTo(200);
+        assertThat(bankA.value().sum()).isEqualTo(-300);
+        assertThat(bankA.dateTime().min()).isEqualTo("2026-02-20T12:00");
+        assertThat(bankA.dateTime().max()).isEqualTo("2026-02-21T23:00");
 
         // Bank B: Count 10, Sum 50
         GroupStats bankB = data.get("Bank B");
-        assertThat(bankB.getGeneral().getCount()).isEqualTo(10);
-        assertThat(bankB.getValue().getSum()).isEqualTo(50);
+        assertThat(bankB.general().count()).isEqualTo(10);
+        assertThat(bankB.value().sum()).isEqualTo(50);
 
         // Bank C: Count 9, Sum 250
         GroupStats bankC = data.get("Bank C");
-        assertThat(bankC.getGeneral().getCount()).isEqualTo(9);
-        assertThat(bankC.getValue().getSum()).isEqualTo(250);
+        assertThat(bankC.general().count()).isEqualTo(9);
+        assertThat(bankC.value().sum()).isEqualTo(250);
     }
 
     @Test
@@ -250,14 +249,14 @@ class DppsApplicationTests {
         StatisticsResponse response = objectMapper.readValue(
                 result.getResponse().getContentAsString(), StatisticsResponse.class);
 
-        Map<String, GroupStats> data = response.getData();
+        Map<String, GroupStats> data = response.data();
 
-        assertThat(data.get("Bank A-Bank B").getGeneral().getCount()).isEqualTo(4);
-        assertThat(data.get("Bank A-Bank C").getGeneral().getCount()).isEqualTo(2);
-        assertThat(data.get("Bank B-Bank A").getGeneral().getCount()).isEqualTo(2);
-        assertThat(data.get("Bank B-Bank C").getGeneral().getCount()).isEqualTo(3);
-        assertThat(data.get("Bank C-Bank A").getGeneral().getCount()).isEqualTo(3);
-        assertThat(data.get("Bank C-Bank B").getGeneral().getCount()).isEqualTo(1);
+        assertThat(data.get("Bank A-Bank B").general().count()).isEqualTo(4);
+        assertThat(data.get("Bank A-Bank C").general().count()).isEqualTo(2);
+        assertThat(data.get("Bank B-Bank A").general().count()).isEqualTo(2);
+        assertThat(data.get("Bank B-Bank C").general().count()).isEqualTo(3);
+        assertThat(data.get("Bank C-Bank A").general().count()).isEqualTo(3);
+        assertThat(data.get("Bank C-Bank B").general().count()).isEqualTo(1);
     }
 
     private void loadTestData() throws Exception {

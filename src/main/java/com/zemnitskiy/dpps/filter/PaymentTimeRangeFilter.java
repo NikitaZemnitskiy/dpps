@@ -6,7 +6,9 @@ import org.apache.ignite.lang.IgniteBiPredicate;
 import java.io.Serial;
 
 /**
- * Remote filter for ScanQuery - executes on remote nodes before sending data over the network.
+ * Remote filter for ScanQuery — executes on remote nodes before sending data over the network.
+ * Must be a regular class (not a record) because Ignite's BinaryMarshaller uses
+ * Unsafe.allocateInstance() for deserialization, which does not work with records.
  * ISO 8601 strings are lexicographically comparable, so String.compareTo() works correctly.
  */
 public class PaymentTimeRangeFilter implements IgniteBiPredicate<String, Payment> {
