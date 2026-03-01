@@ -3,6 +3,7 @@ package com.zemnitskiy.dpps.service;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import com.zemnitskiy.dpps.dto.UploadResult;
+import com.zemnitskiy.dpps.exception.CsvParsingException;
 import com.zemnitskiy.dpps.model.Payment;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -64,7 +65,7 @@ public class CsvParsingService {
 
         } catch (Exception e) {
             log.error("Error processing CSV file", e);
-            throw new RuntimeException("Failed to process CSV file: " + e.getMessage(), e);
+            throw new CsvParsingException("Failed to process CSV file: " + e.getMessage(), e);
         }
 
         return payments;

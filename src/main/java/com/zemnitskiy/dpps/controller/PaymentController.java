@@ -4,7 +4,7 @@ import com.zemnitskiy.dpps.dto.DeleteResult;
 import com.zemnitskiy.dpps.dto.UploadResult;
 import com.zemnitskiy.dpps.model.Payment;
 import com.zemnitskiy.dpps.service.PaymentService;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -24,14 +24,17 @@ public class PaymentController {
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<UploadResult> uploadPayments(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("Uploaded file is empty");
+        }
         UploadResult result = paymentService.uploadPayments(file);
         return ResponseEntity.ok(result);
     }
 
     @GetMapping
     public ResponseEntity<List<Payment>> getPayments(
-            @RequestParam @NotNull String from,
-            @RequestParam @NotNull String to) {
+            @RequestParam @NotBlank String from,
+            @RequestParam @NotBlank String to) {
         List<Payment> payments = paymentService.getPayments(from, to);
         return ResponseEntity.ok(payments);
     }

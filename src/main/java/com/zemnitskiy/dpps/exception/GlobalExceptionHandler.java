@@ -34,8 +34,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+        String message = ex.getConstraintViolations().stream()
+                .map(v -> {
+                    String field = v.getPropertyPath().toString();
+                    int dot = field.lastIndexOf('.');
+                    if (dot >= 0) field = field.substring(dot + 1);
+                    return "'" + field + "' " + v.getMessage();
+                })
+                .collect(java.util.stream.Collectors.joining("; "));
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, "Validation Error", ex.getMessage()));
+                .body(new ErrorResponse(400, "Validation Error", message));
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
@@ -57,6 +65,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(new ErrorResponse(413, "Payload Too Large",
                         "File size exceeds the maximum allowed upload size"));
+    }
+
+    @ExceptionHandler(CsvParsingException.class)
+    public ResponseEntity<ErrorResponse> handleCsvParsing(CsvParsingException ex) {
+        log.error("CSV parsing failed", ex);
+        return ResponseEntity.badRequest()
+                .body(new ErrorResponse(400, "CSV Parsing Error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(PaymentProcessingException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentProcessing(PaymentProcessingException ex) {
+        log.error("Payment processing failed", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse(500, "Payment Processing Error", ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

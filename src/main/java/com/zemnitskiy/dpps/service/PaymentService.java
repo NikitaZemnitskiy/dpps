@@ -3,6 +3,7 @@ package com.zemnitskiy.dpps.service;
 import com.zemnitskiy.dpps.config.IgniteConfig;
 import com.zemnitskiy.dpps.dto.DeleteResult;
 import com.zemnitskiy.dpps.dto.UploadResult;
+import com.zemnitskiy.dpps.exception.PaymentProcessingException;
 import com.zemnitskiy.dpps.filter.PaymentTimeRangeFilter;
 import com.zemnitskiy.dpps.model.Payment;
 import lombok.RequiredArgsConstructor;
@@ -58,7 +59,7 @@ public class PaymentService {
             }
         } catch (Exception e) {
             log.error("Error uploading payments", e);
-            throw new RuntimeException("Failed to upload payments: " + e.getMessage(), e);
+            throw new PaymentProcessingException("Failed to upload payments: " + e.getMessage(), e);
         }
 
         return result;
