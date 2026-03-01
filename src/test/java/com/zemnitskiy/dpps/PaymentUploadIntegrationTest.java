@@ -14,13 +14,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PaymentUploadIntegrationTest extends BaseIntegrationTest {
 
     @Test
-    @DisplayName("Valid CSV — all 15 records loaded without errors")
+    @DisplayName("Valid CSV — all 15 records loaded as new")
     void validCsv_shouldUploadAllRecords() throws Exception {
         MvcResult result = performUpload(TEST_CSV);
 
         UploadResult uploadResult = parseResponse(result, UploadResult.class);
 
         assertThat(uploadResult.getSuccessfullyLoaded()).isEqualTo(15);
+        assertThat(uploadResult.getNewRecords()).isEqualTo(15);
+        assertThat(uploadResult.getUpdatedRecords()).isEqualTo(0);
         assertThat(uploadResult.getErrors()).isEmpty();
     }
 
@@ -112,6 +114,19 @@ class PaymentUploadIntegrationTest extends BaseIntegrationTest {
         Payment stored = cache.get("SAME_ID");
         assertThat(stored.getValue()).isEqualTo(999);
         assertThat(stored.getSender()).isEqualTo("Bank C");
+    }
+
+    @Test
+    @DisplayName("Re-upload same file — all records reported as updated, not new")
+    void reUploadSameFile_shouldReportUpdatedRecords() throws Exception {
+        performUpload(TEST_CSV);
+
+        MvcResult result = performUpload(TEST_CSV);
+        UploadResult uploadResult = parseResponse(result, UploadResult.class);
+
+        assertThat(uploadResult.getSuccessfullyLoaded()).isEqualTo(15);
+        assertThat(uploadResult.getNewRecords()).isEqualTo(0);
+        assertThat(uploadResult.getUpdatedRecords()).isEqualTo(15);
     }
 
     @Test

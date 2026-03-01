@@ -11,6 +11,8 @@ import java.util.Map;
 public class UploadResult {
 
     private int successfullyLoaded;
+    private int newRecords;
+    private int updatedRecords;
     private Map<String, Integer> errors = new LinkedHashMap<>();
 
     public void incrementError(String fieldName) {

@@ -46,16 +46,12 @@ public class PaymentService {
             for (Payment payment : payments) {
                 batch.put(payment.getId(), payment);
                 if (batch.size() >= BATCH_SIZE) {
-                    getCache().putAll(batch);
-                    result.setSuccessfullyLoaded(result.getSuccessfullyLoaded() + batch.size());
-                    log.info("Batch with {} elements uploaded", batch.size());
+                    saveBatch(batch, result);
                     batch.clear();
                 }
             }
             if (!batch.isEmpty()) {
-                getCache().putAll(batch);
-                result.setSuccessfullyLoaded(result.getSuccessfullyLoaded() + batch.size());
-                log.info("Batch with {} elements uploaded", batch.size());
+                saveBatch(batch, result);
             }
         } catch (Exception e) {
             log.error("Error uploading payments", e);
@@ -63,6 +59,21 @@ public class PaymentService {
         }
 
         return result;
+    }
+
+    private void saveBatch(Map<String, Payment> batch, UploadResult result) {
+        IgniteCache<String, Payment> cache = getCache();
+
+        int existingCount = cache.getAll(batch.keySet()).size();
+        int newCount = batch.size() - existingCount;
+
+        cache.putAll(batch);
+
+        result.setSuccessfullyLoaded(result.getSuccessfullyLoaded() + batch.size());
+        result.setNewRecords(result.getNewRecords() + newCount);
+        result.setUpdatedRecords(result.getUpdatedRecords() + existingCount);
+
+        log.info("Batch uploaded: {} new, {} updated", newCount, existingCount);
     }
 
     public List<Payment> getPayments(String from, String to) {
