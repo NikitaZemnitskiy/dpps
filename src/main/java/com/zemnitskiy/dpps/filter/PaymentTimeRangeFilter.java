@@ -5,6 +5,10 @@ import org.apache.ignite.lang.IgniteBiPredicate;
 
 import java.io.Serial;
 
+/**
+ * Predicate for ScanQuery that filters payments by ISO 8601 datetime range.
+ * Serialized and sent to each Ignite node for server-side filtering.
+ */
 public class PaymentTimeRangeFilter implements IgniteBiPredicate<String, Payment> {
 
     @Serial

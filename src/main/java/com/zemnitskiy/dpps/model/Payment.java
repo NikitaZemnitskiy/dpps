@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import java.io.Serial;
 import java.io.Serializable;
 
+/** Domain model representing a single payment transaction. Stored in the Ignite cache keyed by {@code id}. */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor

@@ -64,10 +64,11 @@ public class CsvParsingService {
             }
 
         } catch (Exception e) {
-            log.error("Error processing CSV file", e);
+            log.error("CSV parsing failed at row {}: {}", payments.size() + 1, e.getMessage(), e);
             throw new CsvParsingException("Failed to process CSV file: " + e.getMessage(), e);
         }
 
+        log.info("CSV parsed: {} valid payments, {} error(s)", payments.size(), result.getErrors().size());
         return payments;
     }
 
@@ -130,6 +131,7 @@ public class CsvParsingService {
         return idx != null ? idx : -1;
     }
 
+    /** Resolves the value column index, accepting both "value" and "amount" as header names. */
     private int resolveValueColumnIndex(Map<String, Integer> columnIndex) {
         Integer idx = columnIndex.get("value");
         if (idx != null) return idx;

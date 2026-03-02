@@ -5,10 +5,10 @@ A distributed payment processing and statistics system built with Spring Boot an
 ## Tech Stack
 
 - **Java 17** + **Spring Boot 3.5.11**
-- **Apache Ignite 2.17.0** - In-memory data grid (Partitioned mode, 1 backup)
-- **Keycloak 24.0.2** - OAuth2 SSO authentication
-- **Nginx** - Round-robin load balancer
-- **Docker Compose** - Container orchestration
+- **Apache Ignite 2.17.0** — In-memory data grid (Partitioned mode, 1 backup)
+- **Keycloak 24.0.2** — OAuth2 SSO authentication
+- **Nginx** — Round-robin load balancer
+- **Docker Compose** — Container orchestration
 
 ## Quick Start
 
@@ -19,9 +19,9 @@ docker-compose up -d --build
 ```
 
 This starts 5 services:
-- `keycloak` - Authentication server (port 8090)
-- `app-node-1`, `app-node-2`, `app-node-3` - Application cluster nodes
-- `nginx` - Load balancer (port 80)
+- `keycloak` — Authentication server (port 8090)
+- `app-node-1`, `app-node-2`, `app-node-3` — Application cluster nodes
+- `nginx` — Load balancer (port 80)
 
 ### 2. Verify the cluster
 
@@ -62,8 +62,18 @@ CSV format: `DateTime,Sender,Receiver,Amount,ID` (header row required). Invalid 
 
 Response example:
 ```json
-{"successfullyLoaded": 1000, "errors": {"missing_sender": 15, "missing_value": 5}}
+{
+  "successfullyLoaded": 1000,
+  "newRecords": 985,
+  "updatedRecords": 15,
+  "errors": {
+    "missing_sender": 3,
+    "missing_value": 2
+  }
+}
 ```
+
+Re-uploading the same file will report all records as `updatedRecords` since the system uses upsert semantics (key = payment ID).
 
 #### Get Payments (time range required, max 1 week)
 
@@ -113,6 +123,29 @@ curl "http://localhost/api/statistics?aggregation=BY_BANK&metrics=GENERAL&metric
 curl "http://localhost/api/statistics?aggregation=BY_CONNECTION&metrics=GENERAL" \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+## API Testing with Postman
+
+A ready-to-use Postman collection is included in the `postman/` directory for manual API testing.
+
+### Import
+
+1. Open Postman → **Import** → select files from the `postman/` folder:
+   - `DPPS.postman_collection.json` — all API requests
+   - `DPPS.postman_environment.json` — environment variables (`baseUrl`, `token`, etc.)
+2. Select the **Local** environment in the top-right dropdown
+
+### Included requests
+
+| Request | Description |
+|---------|-------------|
+| Get Token | Obtain a JWT from Keycloak |
+| Upload CSV | Upload a payments file |
+| Get Payments | Retrieve payments by time range |
+| Delete Payments | Delete payments (all or by range) |
+| Statistics by Date | Aggregation with GENERAL + VALUE metrics |
+| Statistics by Bank | Aggregation with all metrics |
+| Statistics by Connection | Aggregation with GENERAL metrics |
 
 ## Running Tests
 

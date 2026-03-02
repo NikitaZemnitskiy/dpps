@@ -8,8 +8,8 @@ import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CachePeekMode;
 import org.apache.ignite.lang.IgniteCallable;
 import org.apache.ignite.resources.IgniteInstanceResource;
-
-import javax.cache.Cache;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
@@ -25,6 +25,8 @@ public class StatisticsCallable implements IgniteCallable<Map<String, PartialSta
 
     @Serial
     private static final long serialVersionUID = 1L;
+
+    private static final transient Logger log = LoggerFactory.getLogger(StatisticsCallable.class);
 
     @IgniteInstanceResource
     private transient Ignite ignite;
@@ -58,6 +60,7 @@ public class StatisticsCallable implements IgniteCallable<Map<String, PartialSta
             }
         }
 
+        log.debug("[{}] Computed {} aggregation: {} groups", ignite.name(), aggregation, localResult.size());
         return localResult;
     }
 

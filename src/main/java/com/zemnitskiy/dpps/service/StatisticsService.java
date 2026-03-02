@@ -17,6 +17,11 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+/**
+ * Orchestrates MapReduce-based statistics computation.
+ * Broadcasts a {@link StatisticsCallable} to every cluster node, then merges
+ * partial results into a single response filtered by the requested metrics.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -24,9 +29,21 @@ public class StatisticsService {
 
     private final Ignite ignite;
 
+    /**
+     * Computes aggregated payment statistics across the entire Ignite cluster.
+     * Each node processes its local primary data; results are merged here.
+     *
+     * @param aggregation grouping strategy
+     * @param metrics     which metric categories to include in the response
+     * @param from        optional time range start (ISO 8601)
+     * @param to          optional time range end (ISO 8601)
+     * @return statistics grouped by the aggregation key
+     */
     public StatisticsResponse calculateStatistics(AggregationType aggregation,
                                                    Set<MetricCategory> metrics,
                                                    String from, String to) {
+        long start = System.currentTimeMillis();
+
         Collection<Map<String, PartialStats>> nodeResults =
                 ignite.compute().broadcast(new StatisticsCallable(aggregation, from, to));
 
@@ -40,6 +57,9 @@ public class StatisticsService {
         merged.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> data.put(entry.getKey(), buildGroupStats(entry.getValue(), metrics)));
+
+        log.info("Statistics {} computed in {}ms: {} groups from {} nodes",
+                aggregation, System.currentTimeMillis() - start, data.size(), nodeResults.size());
 
         return new StatisticsResponse(data);
     }

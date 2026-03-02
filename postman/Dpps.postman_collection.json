@@ -1,0 +1,378 @@
+{
+  "info": {
+    "_postman_id": "b99dc6ad-de65-469a-85fb-0f133926dd7a",
+    "name": "Dpps",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "10406331",
+    "_collection_link": "https://go.postman.co/collection/10406331-b99dc6ad-de65-469a-85fb-0f133926dd7a?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "UploadPayments",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{Token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "type": "file",
+                  "key": "file",
+                  "src": "postman-cloud:///1f113bce-7571-47a0-8a2e-8e03d1396f56"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{dppsUrl}}/api/payments/upload",
+              "host": [
+                "{{dppsUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "upload"
+              ]
+            },
+            "description": "Generated from cURL: curl -X POST http://localhost/api/payments/upload \\\r\n  -H \"Authorization: Bearer $TOKEN\" \\\r\n  -F \"file=@payments.csv\""
+          },
+          "response": []
+        },
+        {
+          "name": "GetPayments",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{Token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{dppsUrl}}/api/payments?from=2026-02-20T12:00&to=2026-02-27T12:00",
+              "host": [
+                "{{dppsUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-02-20T12:00"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-02-27T12:00"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DeletePayment(time range)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{Token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{dppsUrl}}/api/payments?from=2026-02-23T00:00&to=2026-02-24T00:00",
+              "host": [
+                "{{dppsUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-02-23T00:00"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-02-24T00:00"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DeleteAllPayments",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{Token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{dppsUrl}}/api/payments?from=2026-02-23T00:00&to=2026-02-24T00:00",
+              "host": [
+                "{{dppsUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-02-23T00:00"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-02-24T00:00"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Statistics",
+      "item": [
+        {
+          "name": "ByDate(General,Value)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{Token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{dppsUrl}}/api/statistics?aggregation=BY_DATE&metrics=GENERAL&metrics=VALUE",
+              "host": [
+                "{{dppsUrl}}"
+              ],
+              "path": [
+                "api",
+                "statistics"
+              ],
+              "query": [
+                {
+                  "key": "aggregation",
+                  "value": "BY_DATE"
+                },
+                {
+                  "key": "metrics",
+                  "value": "GENERAL"
+                },
+                {
+                  "key": "metrics",
+                  "value": "VALUE"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "By Connection (General)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{Token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{dppsUrl}}/api/statistics?aggregation=BY_CONNECTION&metrics=GENERAL",
+              "host": [
+                "{{dppsUrl}}"
+              ],
+              "path": [
+                "api",
+                "statistics"
+              ],
+              "query": [
+                {
+                  "key": "aggregation",
+                  "value": "BY_CONNECTION"
+                },
+                {
+                  "key": "metrics",
+                  "value": "GENERAL"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "By Bank (all metrics)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{Token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{dppsUrl}}/api/statistics?aggregation=BY_BANK&metrics=GENERAL&metrics=VALUE&metrics=DATETIME",
+              "host": [
+                "{{dppsUrl}}"
+              ],
+              "path": [
+                "api",
+                "statistics"
+              ],
+              "query": [
+                {
+                  "key": "aggregation",
+                  "value": "BY_BANK"
+                },
+                {
+                  "key": "metrics",
+                  "value": "GENERAL"
+                },
+                {
+                  "key": "metrics",
+                  "value": "VALUE"
+                },
+                {
+                  "key": "metrics",
+                  "value": "DATETIME"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "GetToken",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "let response = pm.response.json();\r",
+              "pm.environment.set(\"Token\", response.access_token);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "packages": {},
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "client_id",
+              "value": "payment-client",
+              "type": "text",
+              "uuid": "2f9fb17b-f349-4515-b884-d4bdf5da719e"
+            },
+            {
+              "key": "username",
+              "value": "user",
+              "type": "text",
+              "uuid": "0196ca0f-d225-4da7-907d-9318b676a3c3"
+            },
+            {
+              "key": "password",
+              "value": "user",
+              "type": "text",
+              "uuid": "77ababcd-c895-4f91-b740-f5aec06051ae"
+            },
+            {
+              "key": "grant_type",
+              "value": "password",
+              "type": "text",
+              "uuid": "22ffe53e-4e7b-4b7f-bcef-0e8d32dea332"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{keycloakUrl}}/realms/payment-system/protocol/openid-connect/token",
+          "host": [
+            "{{keycloakUrl}}"
+          ],
+          "path": [
+            "realms",
+            "payment-system",
+            "protocol",
+            "openid-connect",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

@@ -5,6 +5,11 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 
+/**
+ * Accumulator for statistics computed on a single Ignite node.
+ * Supports {@link #accumulate} for adding individual payments and
+ * {@link #merge} for combining results from different nodes.
+ */
 @Data
 public class PartialStats implements Serializable {
 
@@ -19,6 +24,7 @@ public class PartialStats implements Serializable {
     private String maxDateTime;
     private long dateTimeSumEpochSeconds;
 
+    /** Adds a single payment's data to this accumulator. */
     public void accumulate(double value, String dateTime, long epochSeconds) {
         count++;
         sumValue += value;
@@ -34,6 +40,7 @@ public class PartialStats implements Serializable {
         dateTimeSumEpochSeconds += epochSeconds;
     }
 
+    /** Merges another node's partial result into this one. Used during the reduce phase. */
     public PartialStats merge(PartialStats other) {
         if (other == null || other.count == 0) return this;
         if (this.count == 0) return other;

@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import java.time.format.DateTimeParseException;
 import java.util.stream.Collectors;
 
+/** Centralized exception handling. Maps domain and validation exceptions to structured JSON error responses. */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {

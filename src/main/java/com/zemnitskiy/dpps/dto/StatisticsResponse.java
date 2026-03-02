@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.Map;
 
+/** Response DTO for the statistics endpoint. Groups are keyed by aggregation value (date, bank, connection). */
 public record StatisticsResponse(Map<String, GroupStats> data) {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

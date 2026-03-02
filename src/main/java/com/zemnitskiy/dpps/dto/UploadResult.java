@@ -6,6 +6,7 @@ import lombok.Data;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/** Response DTO for the CSV upload endpoint. Tracks loaded, new, updated counts and per-field errors. */
 @Data
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class UploadResult {

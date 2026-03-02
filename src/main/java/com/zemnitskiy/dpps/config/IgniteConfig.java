@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/** Configures the embedded Apache Ignite node with a partitioned payment cache (1 backup). */
 @Configuration
 public class IgniteConfig {
 

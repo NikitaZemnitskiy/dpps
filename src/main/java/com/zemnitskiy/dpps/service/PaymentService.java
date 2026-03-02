@@ -21,6 +21,10 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Core service for payment storage operations using the Ignite distributed cache.
+ * Handles CSV upload (with batching), retrieval by time range, and deletion.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -32,7 +36,16 @@ public class PaymentService {
     private final Ignite ignite;
     private final CsvParsingService csvParsingService;
 
+    /**
+     * Parses a CSV file and stores payments in the distributed cache in batches.
+     * Tracks new vs updated records by checking existing keys before each batch insert.
+     *
+     * @param file uploaded CSV file
+     * @return result with loaded/new/updated counts and per-field error counts
+     * @throws PaymentProcessingException if an I/O or unexpected error occurs
+     */
     public UploadResult uploadPayments(MultipartFile file) {
+        log.info("Starting payment upload, file size: {} bytes", file.getSize());
         UploadResult result = new UploadResult();
 
         try {
@@ -54,9 +67,20 @@ public class PaymentService {
             throw new PaymentProcessingException("Failed to upload payments: " + e.getMessage(), e);
         }
 
+        log.info("Upload complete: {} loaded ({} new, {} updated), {} errors",
+                result.getSuccessfullyLoaded(), result.getNewRecords(),
+                result.getUpdatedRecords(), result.getErrors().size());
         return result;
     }
 
+    /**
+     * Deletes payments from the cache. If a time range is provided, uses a ScanQuery
+     * to find matching keys; otherwise clears the entire cache.
+     *
+     * @param from start of the range (ISO 8601), or {@code null} to delete all
+     * @param to   end of the range (ISO 8601), or {@code null} to delete all
+     * @return result with the number of deleted records
+     */
     public DeleteResult deletePayments(String from, String to) {
         IgniteCache<String, Payment> cache = getCache();
 
@@ -73,23 +97,36 @@ public class PaymentService {
             if (!keysToDelete.isEmpty()) {
                 cache.removeAll(keysToDelete);
             }
+            log.info("Deleted {} payments in range [{} — {}]", keysToDelete.size(), from, to);
             return new DeleteResult(keysToDelete.size());
         } else {
             int size = cache.size();
             cache.clear();
+            log.info("Cleared all {} payments from cache", size);
             return new DeleteResult(size);
         }
     }
 
+    /**
+     * Retrieves payments within the given time range using a distributed ScanQuery.
+     * The range must not exceed 1 week.
+     *
+     * @param from start of the range (ISO 8601)
+     * @param to   end of the range (ISO 8601)
+     * @return list of matching payments
+     * @throws IllegalArgumentException if the range is invalid or exceeds 1 week
+     */
     public List<Payment> getPayments(String from, String to) {
         validateTimeRange(from, to);
 
         ScanQuery<String, Payment> query = new ScanQuery<>(new PaymentTimeRangeFilter(from, to));
 
         try (QueryCursor<Cache.Entry<String, Payment>> cursor = getCache().query(query)) {
-            return cursor.getAll().stream()
+            List<Payment> payments = cursor.getAll().stream()
                     .map(Cache.Entry::getValue)
                     .collect(Collectors.toList());
+            log.debug("ScanQuery [{} — {}] returned {} payments", from, to, payments.size());
+            return payments;
         }
     }
 
