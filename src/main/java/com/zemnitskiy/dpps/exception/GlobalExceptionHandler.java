@@ -12,6 +12,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.format.DateTimeParseException;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 @Slf4j
@@ -22,13 +23,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, BAD_REQUEST, ex.getMessage()));
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), BAD_REQUEST, ex.getMessage()));
     }
 
     @ExceptionHandler(DateTimeParseException.class)
     public ResponseEntity<ErrorResponse> handleDateTimeParse(DateTimeParseException ex) {
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, BAD_REQUEST,
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), BAD_REQUEST,
                         "Invalid date-time format. Expected ISO 8601 (e.g. 2026-02-20T12:00)"));
     }
 
@@ -41,29 +42,29 @@ public class GlobalExceptionHandler {
                     if (dot >= 0) field = field.substring(dot + 1);
                     return "'" + field + "' " + v.getMessage();
                 })
-                .collect(java.util.stream.Collectors.joining("; "));
+                .collect(Collectors.joining("; "));
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, "Validation Error", message));
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Validation Error", message));
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException ex) {
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, BAD_REQUEST,
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), BAD_REQUEST,
                         "Required parameter '" + ex.getParameterName() + "' is missing"));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, BAD_REQUEST,
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), BAD_REQUEST,
                         "Invalid value for parameter '" + ex.getName() + "': " + ex.getValue()));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(new ErrorResponse(413, "Payload Too Large",
+                .body(new ErrorResponse(HttpStatus.PAYLOAD_TOO_LARGE.value(), "Payload Too Large",
                         "File size exceeds the maximum allowed upload size"));
     }
 
@@ -71,20 +72,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleCsvParsing(CsvParsingException ex) {
         log.error("CSV parsing failed", ex);
         return ResponseEntity.badRequest()
-                .body(new ErrorResponse(400, "CSV Parsing Error", ex.getMessage()));
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "CSV Parsing Error", ex.getMessage()));
     }
 
     @ExceptionHandler(PaymentProcessingException.class)
     public ResponseEntity<ErrorResponse> handlePaymentProcessing(PaymentProcessingException ex) {
         log.error("Payment processing failed", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse(500, "Payment Processing Error", ex.getMessage()));
+                .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Payment Processing Error", ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
         log.error("Unexpected error", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse(500, "Internal Server Error", ex.getMessage()));
+                .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal Server Error", ex.getMessage()));
     }
 }

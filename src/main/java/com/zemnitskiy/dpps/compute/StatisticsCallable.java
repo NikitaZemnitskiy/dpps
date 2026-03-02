@@ -44,7 +44,7 @@ public class StatisticsCallable implements IgniteCallable<Map<String, PartialSta
         IgniteCache<String, Payment> cache = ignite.cache(IgniteConfig.PAYMENTS_CACHE);
         Map<String, PartialStats> localResult = new HashMap<>();
 
-        for (Cache.Entry<String, Payment> entry : cache.localEntries(CachePeekMode.PRIMARY)) {
+        for (var entry: cache.localEntries(CachePeekMode.PRIMARY)) {
             Payment p = entry.getValue();
 
             if (!matchesTimeRange(p)) continue;

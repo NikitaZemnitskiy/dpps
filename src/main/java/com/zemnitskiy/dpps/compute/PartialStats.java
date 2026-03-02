@@ -36,16 +36,7 @@ public class PartialStats implements Serializable {
 
     public PartialStats merge(PartialStats other) {
         if (other == null || other.count == 0) return this;
-        if (this.count == 0) {
-            this.count = other.count;
-            this.minValue = other.minValue;
-            this.maxValue = other.maxValue;
-            this.sumValue = other.sumValue;
-            this.minDateTime = other.minDateTime;
-            this.maxDateTime = other.maxDateTime;
-            this.dateTimeSumEpochSeconds = other.dateTimeSumEpochSeconds;
-            return this;
-        }
+        if (this.count == 0) return other;
 
         this.count += other.count;
         this.sumValue += other.sumValue;

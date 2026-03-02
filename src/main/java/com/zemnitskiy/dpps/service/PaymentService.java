@@ -32,10 +32,6 @@ public class PaymentService {
     private final Ignite ignite;
     private final CsvParsingService csvParsingService;
 
-    private IgniteCache<String, Payment> getCache() {
-        return ignite.cache(IgniteConfig.PAYMENTS_CACHE);
-    }
-
     public UploadResult uploadPayments(MultipartFile file) {
         UploadResult result = new UploadResult();
 
@@ -61,34 +57,6 @@ public class PaymentService {
         return result;
     }
 
-    private void saveBatch(Map<String, Payment> batch, UploadResult result) {
-        IgniteCache<String, Payment> cache = getCache();
-
-        int existingCount = cache.getAll(batch.keySet()).size();
-        int newCount = batch.size() - existingCount;
-
-        cache.putAll(batch);
-
-        result.setSuccessfullyLoaded(result.getSuccessfullyLoaded() + batch.size());
-        result.setNewRecords(result.getNewRecords() + newCount);
-        result.setUpdatedRecords(result.getUpdatedRecords() + existingCount);
-
-        log.info("Batch uploaded: {} new, {} updated", newCount, existingCount);
-    }
-
-    public List<Payment> getPayments(String from, String to) {
-        log.info("In getPayments {}", ignite.name());
-        validateTimeRange(from, to);
-
-        ScanQuery<String, Payment> query = new ScanQuery<>(new PaymentTimeRangeFilter(from, to));
-
-        try (QueryCursor<Cache.Entry<String, Payment>> cursor = getCache().query(query)) {
-            return cursor.getAll().stream()
-                    .map(Cache.Entry::getValue)
-                    .collect(Collectors.toList());
-        }
-    }
-
     public DeleteResult deletePayments(String from, String to) {
         IgniteCache<String, Payment> cache = getCache();
 
@@ -111,6 +79,37 @@ public class PaymentService {
             cache.clear();
             return new DeleteResult(size);
         }
+    }
+
+    public List<Payment> getPayments(String from, String to) {
+        validateTimeRange(from, to);
+
+        ScanQuery<String, Payment> query = new ScanQuery<>(new PaymentTimeRangeFilter(from, to));
+
+        try (QueryCursor<Cache.Entry<String, Payment>> cursor = getCache().query(query)) {
+            return cursor.getAll().stream()
+                    .map(Cache.Entry::getValue)
+                    .collect(Collectors.toList());
+        }
+    }
+
+    private void saveBatch(Map<String, Payment> batch, UploadResult result) {
+        IgniteCache<String, Payment> cache = getCache();
+
+        int existingCount = cache.getAll(batch.keySet()).size();
+        int newCount = batch.size() - existingCount;
+
+        cache.putAll(batch);
+
+        result.setSuccessfullyLoaded(result.getSuccessfullyLoaded() + batch.size());
+        result.setNewRecords(result.getNewRecords() + newCount);
+        result.setUpdatedRecords(result.getUpdatedRecords() + existingCount);
+
+        log.info("Batch uploaded: {} new, {} updated", newCount, existingCount);
+    }
+
+    private IgniteCache<String, Payment> getCache() {
+        return ignite.cache(IgniteConfig.PAYMENTS_CACHE);
     }
 
     private void validateTimeRange(String from, String to) {
