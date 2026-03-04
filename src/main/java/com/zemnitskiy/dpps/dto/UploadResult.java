@@ -16,11 +16,11 @@ public class UploadResult {
     private int updatedRecords;
     private Map<String, Integer> errors = new LinkedHashMap<>();
 
-    public void incrementError(String fieldName) {
+    public void incrementMissing(String fieldName) {
         errors.merge("missing_" + fieldName.toLowerCase(), 1, Integer::sum);
     }
 
-    public void incrementInvalidValue() {
-        errors.merge("invalid_value", 1, Integer::sum);
+    public void incrementInvalid(String fieldName) {
+        errors.merge("invalid_" + fieldName.toLowerCase(), 1, Integer::sum);
     }
 }

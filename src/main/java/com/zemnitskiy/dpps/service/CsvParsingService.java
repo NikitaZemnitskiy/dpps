@@ -1,21 +1,22 @@
 package com.zemnitskiy.dpps.service;
 
-import com.opencsv.CSVReader;
-import com.opencsv.CSVReaderBuilder;
+import com.opencsv.bean.CsvToBeanBuilder;
+import com.zemnitskiy.dpps.dto.CsvPaymentRecord;
 import com.zemnitskiy.dpps.dto.UploadResult;
 import com.zemnitskiy.dpps.exception.CsvParsingException;
 import com.zemnitskiy.dpps.model.Payment;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
+
+import static org.apache.commons.lang3.StringUtils.isBlank;
 
 /**
  * Parses CSV files into Payment objects with validation.
@@ -24,6 +25,13 @@ import java.util.Map;
 @Service
 @Slf4j
 public class CsvParsingService {
+
+    private static final String FIELD_ID = "id";
+    private static final String FIELD_SENDER = "sender";
+    private static final String FIELD_RECEIVER = "receiver";
+    private static final String FIELD_DATETIME = "datetime";
+    private static final String FIELD_VALUE = "value";
+    private static final String FIELD_CSV_ROW = "csv_row";
 
     /**
      * Parses CSV input stream into a list of valid Payment objects.
@@ -34,92 +42,78 @@ public class CsvParsingService {
      * @return list of successfully parsed Payment objects
      */
     public List<Payment> parse(InputStream input, UploadResult result) {
-        List<Payment> payments = new ArrayList<>();
+        try (var reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
 
-        try (CSVReader reader = new CSVReaderBuilder(
-                new InputStreamReader(input, StandardCharsets.UTF_8))
-                .build()) {
+            var csvToBean = new CsvToBeanBuilder<CsvPaymentRecord>(reader)
+                    .withType(CsvPaymentRecord.class)
+                    .withIgnoreLeadingWhiteSpace(true)
+                    .withThrowExceptions(false)
+                    .build();
 
-            String[] header = reader.readNext();
-            if (header == null) {
-                return payments;
-            }
+            List<CsvPaymentRecord> records = csvToBean.parse();
 
-            Map<String, Integer> columnIndex = new HashMap<>();
-            for (int i = 0; i < header.length; i++) {
-                columnIndex.put(header[i].trim().toLowerCase(), i);
-            }
+            csvToBean.getCapturedExceptions()
+                    .forEach(e -> result.incrementInvalid(FIELD_CSV_ROW));
 
-            int dateTimeIdx = resolveColumnIndex(columnIndex, "datetime");
-            int senderIdx = resolveColumnIndex(columnIndex, "sender");
-            int receiverIdx = resolveColumnIndex(columnIndex, "receiver");
-            int valueIdx = resolveValueColumnIndex(columnIndex);
-            int idIdx = resolveColumnIndex(columnIndex, "id");
+            List<Payment> payments = records.stream()
+                    .map(r -> toPayment(r, result))
+                    .filter(Objects::nonNull)
+                    .toList();
 
-            String[] row;
-            while ((row = reader.readNext()) != null) {
-                Payment payment = parseRow(row, dateTimeIdx, senderIdx, receiverIdx, valueIdx, idIdx, result);
-                if (payment != null) {
-                    payments.add(payment);
-                }
-            }
+            log.info("CSV parsed: {} valid payments, {} error(s)",
+                    payments.size(), result.getErrors().values().stream().mapToInt(Integer::intValue).sum());
+
+            return payments;
 
         } catch (Exception e) {
-            log.error("CSV parsing failed at row {}: {}", payments.size() + 1, e.getMessage(), e);
+            log.error("CSV parsing failed: {}", e.getMessage(), e);
             throw new CsvParsingException("Failed to process CSV file: " + e.getMessage(), e);
         }
-
-        log.info("CSV parsed: {} valid payments, {} error(s)", payments.size(), result.getErrors().size());
-        return payments;
     }
 
-    private Payment parseRow(String[] row, int dateTimeIdx, int senderIdx, int receiverIdx,
-                             int valueIdx, int idIdx, UploadResult result) {
-        String dateTime = getField(row, dateTimeIdx);
-        String sender = getField(row, senderIdx);
-        String receiver = getField(row, receiverIdx);
-        String valueStr = getField(row, valueIdx);
-        String id = getField(row, idIdx);
-
+    private Payment toPayment(CsvPaymentRecord csvPayment, UploadResult result) {
         boolean valid = true;
-        LocalDateTime parsedDateTime = null;
 
-        if (isBlank(dateTime)) {
-            result.incrementError("datetime");
+        if (isBlank(csvPayment.getId())) {
+            result.incrementMissing(FIELD_ID);
+            valid = false;
+        }
+        if (isBlank(csvPayment.getSender())) {
+            result.incrementMissing(FIELD_SENDER);
+            valid = false;
+        }
+        if (isBlank(csvPayment.getReceiver())) {
+            result.incrementMissing(FIELD_RECEIVER);
+            valid = false;
+        }
+
+        LocalDateTime dateTime = null;
+        if (isBlank(csvPayment.getDateTime())) {
+            result.incrementMissing(FIELD_DATETIME);
             valid = false;
         } else {
             try {
-                parsedDateTime = LocalDateTime.parse(dateTime.trim());
+                dateTime = LocalDateTime.parse(csvPayment.getDateTime().trim());
             } catch (DateTimeParseException e) {
-                result.incrementError("invalid_datetime");
+                result.incrementInvalid(FIELD_DATETIME);
                 valid = false;
             }
         }
-        if (isBlank(sender)) {
-            result.incrementError("sender");
-            valid = false;
-        }
-        if (isBlank(receiver)) {
-            result.incrementError("receiver");
-            valid = false;
-        }
-        if (isBlank(id)) {
-            result.incrementError("id");
-            valid = false;
-        }
 
-        if (isBlank(valueStr)) {
-            result.incrementError("value");
+        String amountStr = csvPayment.getAmountValue();
+        double value = 0;
+        if (isBlank(amountStr)) {
+            result.incrementMissing(FIELD_VALUE);
             valid = false;
         } else {
             try {
-                double val = Double.parseDouble(valueStr.trim());
-                if (val <= 0) {
-                    result.incrementInvalidValue();
+                value = Double.parseDouble(amountStr.trim());
+                if (value <= 0 || !Double.isFinite(value)) {
+                    result.incrementInvalid(FIELD_VALUE);
                     valid = false;
                 }
             } catch (NumberFormatException e) {
-                result.incrementInvalidValue();
+                result.incrementInvalid(FIELD_VALUE);
                 valid = false;
             }
         }
@@ -127,33 +121,11 @@ public class CsvParsingService {
         if (!valid) return null;
 
         return new Payment(
-                id.trim(),
-                parsedDateTime,
-                sender.trim(),
-                receiver.trim(),
-                Double.parseDouble(valueStr.trim())
+                csvPayment.getId().trim(),
+                dateTime,
+                csvPayment.getSender().trim(),
+                csvPayment.getReceiver().trim(),
+                value
         );
-    }
-
-    private int resolveColumnIndex(Map<String, Integer> columnIndex, String name) {
-        Integer idx = columnIndex.get(name);
-        return idx != null ? idx : -1;
-    }
-
-    /** Resolves the value column index, accepting both "value" and "amount" as header names. */
-    private int resolveValueColumnIndex(Map<String, Integer> columnIndex) {
-        Integer idx = columnIndex.get("value");
-        if (idx != null) return idx;
-        idx = columnIndex.get("amount");
-        return idx != null ? idx : -1;
-    }
-
-    private String getField(String[] row, int idx) {
-        if (idx < 0 || idx >= row.length) return null;
-        return row[idx];
-    }
-
-    private boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
     }
 }
