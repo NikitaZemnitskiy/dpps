@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,7 +47,7 @@ class CsvParsingServiceTest {
 
         Payment first = payments.get(0);
         assertThat(first.getId()).isEqualTo("1");
-        assertThat(first.getDateTime()).isEqualTo("2026-02-20T12:00");
+        assertThat(first.getDateTime()).isEqualTo(LocalDateTime.of(2026, 2, 20, 12, 0));
         assertThat(first.getSender()).isEqualTo("Bank A");
         assertThat(first.getReceiver()).isEqualTo("Bank B");
         assertThat(first.getValue()).isEqualTo(100.0);
@@ -131,7 +132,7 @@ class CsvParsingServiceTest {
         assertThat(payments).hasSize(1);
         Payment p = payments.get(0);
         assertThat(p.getId()).isEqualTo("X1");
-        assertThat(p.getDateTime()).isEqualTo("2026-02-20T12:00");
+        assertThat(p.getDateTime()).isEqualTo(LocalDateTime.of(2026, 2, 20, 12, 0));
         assertThat(p.getSender()).isEqualTo("Bank A");
         assertThat(p.getReceiver()).isEqualTo("Bank B");
         assertThat(p.getValue()).isEqualTo(100.0);

@@ -6,6 +6,9 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: http://keycloak:8090/realms/payment-system/protocol/openid-connect/certs
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
   servlet:
     multipart:
       max-file-size: 100MB

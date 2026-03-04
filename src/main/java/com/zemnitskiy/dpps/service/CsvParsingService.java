@@ -7,10 +7,11 @@ import com.zemnitskiy.dpps.exception.CsvParsingException;
 import com.zemnitskiy.dpps.model.Payment;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -81,10 +82,18 @@ public class CsvParsingService {
         String id = getField(row, idIdx);
 
         boolean valid = true;
+        LocalDateTime parsedDateTime = null;
 
         if (isBlank(dateTime)) {
             result.incrementError("datetime");
             valid = false;
+        } else {
+            try {
+                parsedDateTime = LocalDateTime.parse(dateTime.trim());
+            } catch (DateTimeParseException e) {
+                result.incrementError("invalid_datetime");
+                valid = false;
+            }
         }
         if (isBlank(sender)) {
             result.incrementError("sender");
@@ -119,7 +128,7 @@ public class CsvParsingService {
 
         return new Payment(
                 id.trim(),
-                dateTime.trim(),
+                parsedDateTime,
                 sender.trim(),
                 receiver.trim(),
                 Double.parseDouble(valueStr.trim())

@@ -77,11 +77,11 @@ public class PaymentService {
      * Deletes payments from the cache. If a time range is provided, uses a ScanQuery
      * to find matching keys; otherwise clears the entire cache.
      *
-     * @param from start of the range (ISO 8601), or {@code null} to delete all
-     * @param to   end of the range (ISO 8601), or {@code null} to delete all
+     * @param from start of the range, or {@code null} to delete all
+     * @param to   end of the range, or {@code null} to delete all
      * @return result with the number of deleted records
      */
-    public DeleteResult deletePayments(String from, String to) {
+    public DeleteResult deletePayments(LocalDateTime from, LocalDateTime to) {
         IgniteCache<String, Payment> cache = getCache();
 
         if (from != null && to != null) {
@@ -111,12 +111,12 @@ public class PaymentService {
      * Retrieves payments within the given time range using a distributed ScanQuery.
      * The range must not exceed 1 week.
      *
-     * @param from start of the range (ISO 8601)
-     * @param to   end of the range (ISO 8601)
+     * @param from start of the range
+     * @param to   end of the range
      * @return list of matching payments
      * @throws IllegalArgumentException if the range is invalid or exceeds 1 week
      */
-    public List<Payment> getPayments(String from, String to) {
+    public List<Payment> getPayments(LocalDateTime from, LocalDateTime to) {
         validateTimeRange(from, to);
 
         ScanQuery<String, Payment> query = new ScanQuery<>(new PaymentTimeRangeFilter(from, to));
@@ -149,15 +149,12 @@ public class PaymentService {
         return ignite.cache(IgniteConfig.PAYMENTS_CACHE);
     }
 
-    private void validateTimeRange(String from, String to) {
-        LocalDateTime fromDt = LocalDateTime.parse(from);
-        LocalDateTime toDt = LocalDateTime.parse(to);
-
-        if (fromDt.isAfter(toDt)) {
+    private void validateTimeRange(LocalDateTime from, LocalDateTime to) {
+        if (from.isAfter(to)) {
             throw new IllegalArgumentException("'from' must be before 'to'");
         }
 
-        Duration duration = Duration.between(fromDt, toDt);
+        Duration duration = Duration.between(from, to);
         if (duration.compareTo(MAX_RANGE) > 0) {
             throw new IllegalArgumentException("Time range must not exceed 1 week");
         }

@@ -41,7 +41,7 @@ public class StatisticsService {
      */
     public StatisticsResponse calculateStatistics(AggregationType aggregation,
                                                    Set<MetricCategory> metrics,
-                                                   String from, String to) {
+                                                   LocalDateTime from, LocalDateTime to) {
         long start = System.currentTimeMillis();
 
         Collection<Map<String, PartialStats>> nodeResults =
@@ -90,7 +90,10 @@ public class StatisticsService {
                 Instant.ofEpochSecond(avgEpoch), ZoneOffset.UTC);
         String avgFormatted = avgDt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
-        return new DateTimeStats(stats.getMinDateTime(), stats.getMaxDateTime(), avgFormatted);
+        String minFormatted = stats.getMinDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        String maxFormatted = stats.getMaxDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+
+        return new DateTimeStats(minFormatted, maxFormatted, avgFormatted);
     }
 
     private double roundTo4(double value) {

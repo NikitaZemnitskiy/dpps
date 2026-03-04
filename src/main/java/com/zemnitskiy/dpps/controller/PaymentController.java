@@ -4,7 +4,7 @@ import com.zemnitskiy.dpps.dto.DeleteResult;
 import com.zemnitskiy.dpps.dto.UploadResult;
 import com.zemnitskiy.dpps.model.Payment;
 import com.zemnitskiy.dpps.service.PaymentService;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -13,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -52,8 +53,8 @@ public class PaymentController {
      */
     @GetMapping
     public ResponseEntity<List<Payment>> getPayments(
-            @RequestParam @NotBlank String from,
-            @RequestParam @NotBlank String to) {
+            @RequestParam @NotNull LocalDateTime from,
+            @RequestParam @NotNull LocalDateTime to) {
         log.info("GET /api/payments from={} to={}", from, to);
         List<Payment> payments = paymentService.getPayments(from, to);
         log.debug("GET /api/payments returned {} records", payments.size());
@@ -66,8 +67,8 @@ public class PaymentController {
      */
     @DeleteMapping
     public ResponseEntity<DeleteResult> deletePayments(
-            @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
+            @RequestParam(required = false) LocalDateTime from,
+            @RequestParam(required = false) LocalDateTime to) {
         log.info("DELETE /api/payments from={} to={}", from, to);
         DeleteResult result = paymentService.deletePayments(from, to);
         return ResponseEntity.ok(result);

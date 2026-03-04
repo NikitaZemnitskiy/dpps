@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,7 +63,7 @@ class EndToEndIntegrationTest extends BaseIntegrationTest {
 
         List<Payment> remaining = parseResponse(result, new TypeReference<>() {});
         assertThat(remaining).hasSize(10);
-        assertThat(remaining).allMatch(p -> p.getDateTime().startsWith("2026-02-21"));
+        assertThat(remaining).allMatch(p -> p.getDateTime().toLocalDate().equals(LocalDate.of(2026, 2, 21)));
     }
 
     @Test

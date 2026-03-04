@@ -61,13 +61,13 @@ class StatisticsIntegrationTest extends BaseIntegrationTest {
         Map<String, GroupStats> data = response.data();
 
         DateTimeStats dt20 = data.get("2026-02-20").dateTime();
-        assertThat(dt20.min()).isEqualTo("2026-02-20T12:00");
-        assertThat(dt20.max()).isEqualTo("2026-02-20T22:00");
+        assertThat(dt20.min()).isEqualTo("2026-02-20T12:00:00");
+        assertThat(dt20.max()).isEqualTo("2026-02-20T22:00:00");
         assertThat(dt20.average()).isEqualTo("2026-02-20T18:12:00");
 
         DateTimeStats dt21 = data.get("2026-02-21").dateTime();
-        assertThat(dt21.min()).isEqualTo("2026-02-21T02:00");
-        assertThat(dt21.max()).isEqualTo("2026-02-21T23:00");
+        assertThat(dt21.min()).isEqualTo("2026-02-21T02:00:00");
+        assertThat(dt21.max()).isEqualTo("2026-02-21T23:00:00");
         assertThat(dt21.average()).isEqualTo("2026-02-21T11:30:00");
 
         assertThat(data.get("2026-02-20").general()).isNull();
@@ -94,8 +94,8 @@ class StatisticsIntegrationTest extends BaseIntegrationTest {
         assertThat(bankA.value().sum()).isEqualTo(-300);
         assertThat(bankA.value().min()).isEqualTo(-300);
         assertThat(bankA.value().max()).isEqualTo(200);
-        assertThat(bankA.dateTime().min()).isEqualTo("2026-02-20T12:00");
-        assertThat(bankA.dateTime().max()).isEqualTo("2026-02-21T23:00");
+        assertThat(bankA.dateTime().min()).isEqualTo("2026-02-20T12:00:00");
+        assertThat(bankA.dateTime().max()).isEqualTo("2026-02-21T23:00:00");
 
         GroupStats bankB = data.get("Bank B");
         assertThat(bankB.general().count()).isEqualTo(10);
