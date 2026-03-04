@@ -1,5 +1,6 @@
 package com.zemnitskiy.dpps.service;
 
+import com.opencsv.bean.CsvToBean;
 import com.opencsv.bean.CsvToBeanBuilder;
 import com.zemnitskiy.dpps.dto.CsvPaymentRecord;
 import com.zemnitskiy.dpps.dto.UploadResult;
@@ -13,8 +14,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
-import java.util.List;
-import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
 
@@ -34,41 +34,44 @@ public class CsvParsingService {
     private static final String FIELD_CSV_ROW = "csv_row";
 
     /**
-     * Parses CSV input stream into a list of valid Payment objects.
-     * Invalid rows are skipped and their errors are recorded in the UploadResult.
+     * Parses CSV input stream lazily, validating each row and passing valid payments
+     * to the consumer one at a time. Never loads the entire file into memory.
      *
-     * @param input  CSV input stream (header + data rows)
-     * @param result UploadResult to accumulate validation errors
-     * @return list of successfully parsed Payment objects
+     * @param input    CSV input stream (header + data rows)
+     * @param result   UploadResult to accumulate validation errors
+     * @param consumer callback invoked for each successfully validated payment
      */
-    public List<Payment> parse(InputStream input, UploadResult result) {
+    public void parse(InputStream input, UploadResult result, Consumer<Payment> consumer) {
+        int validCount = 0;
+
         try (var reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
 
-            var csvToBean = new CsvToBeanBuilder<CsvPaymentRecord>(reader)
+            CsvToBean<CsvPaymentRecord> csvToBean = new CsvToBeanBuilder<CsvPaymentRecord>(reader)
                     .withType(CsvPaymentRecord.class)
                     .withIgnoreLeadingWhiteSpace(true)
                     .withThrowExceptions(false)
                     .build();
 
-            List<CsvPaymentRecord> records = csvToBean.parse();
+            for (CsvPaymentRecord record : csvToBean) {
+                Payment payment = toPayment(record, result);
+                if (payment != null) {
+                    consumer.accept(payment);
+                    validCount++;
+                }
+            }
 
             csvToBean.getCapturedExceptions()
                     .forEach(e -> result.incrementInvalid(FIELD_CSV_ROW));
 
-            List<Payment> payments = records.stream()
-                    .map(r -> toPayment(r, result))
-                    .filter(Objects::nonNull)
-                    .toList();
-
-            log.info("CSV parsed: {} valid payments, {} error(s)",
-                    payments.size(), result.getErrors().values().stream().mapToInt(Integer::intValue).sum());
-
-            return payments;
-
+        } catch (CsvParsingException e) {
+            throw e;
         } catch (Exception e) {
             log.error("CSV parsing failed: {}", e.getMessage(), e);
             throw new CsvParsingException("Failed to process CSV file: " + e.getMessage(), e);
         }
+
+        log.info("CSV parsed: {} valid payments, {} error(s)",
+                validCount, result.getErrors().values().stream().mapToInt(Integer::intValue).sum());
     }
 
     private Payment toPayment(CsvPaymentRecord csvPayment, UploadResult result) {

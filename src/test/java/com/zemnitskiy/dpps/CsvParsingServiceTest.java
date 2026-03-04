@@ -11,6 +11,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,7 +41,7 @@ class CsvParsingServiceTest {
                 """;
 
         UploadResult result = new UploadResult();
-        List<Payment> payments = csvParsingService.parse(toStream(csv), result);
+        List<Payment> payments = parseToList(csv, result);
 
         assertThat(payments).hasSize(3);
         assertThat(result.getErrors()).isEmpty();
@@ -65,7 +66,7 @@ class CsvParsingServiceTest {
                 """;
 
         UploadResult result = new UploadResult();
-        List<Payment> payments = csvParsingService.parse(toStream(csv), result);
+        List<Payment> payments = parseToList(csv, result);
 
         assertThat(payments).isEmpty();
         assertThat(result.getErrors())
@@ -85,7 +86,7 @@ class CsvParsingServiceTest {
                 """;
 
         UploadResult result = new UploadResult();
-        List<Payment> payments = csvParsingService.parse(toStream(csv), result);
+        List<Payment> payments = parseToList(csv, result);
 
         assertThat(payments).isEmpty();
         assertThat(result.getErrors()).containsEntry("invalid_value", 3);
@@ -97,7 +98,7 @@ class CsvParsingServiceTest {
         String csv = "DateTime,Sender,Receiver,Amount,ID\n";
 
         UploadResult result = new UploadResult();
-        List<Payment> payments = csvParsingService.parse(toStream(csv), result);
+        List<Payment> payments = parseToList(csv, result);
 
         assertThat(payments).isEmpty();
         assertThat(result.getErrors()).isEmpty();
@@ -112,7 +113,7 @@ class CsvParsingServiceTest {
                 """;
 
         UploadResult result = new UploadResult();
-        List<Payment> payments = csvParsingService.parse(toStream(csv), result);
+        List<Payment> payments = parseToList(csv, result);
 
         assertThat(payments).hasSize(1);
         assertThat(payments.get(0).getValue()).isEqualTo(999.0);
@@ -127,7 +128,7 @@ class CsvParsingServiceTest {
                 """;
 
         UploadResult result = new UploadResult();
-        List<Payment> payments = csvParsingService.parse(toStream(csv), result);
+        List<Payment> payments = parseToList(csv, result);
 
         assertThat(payments).hasSize(1);
         Payment p = payments.get(0);
@@ -142,10 +143,16 @@ class CsvParsingServiceTest {
     @DisplayName("Empty input — returns empty list")
     void emptyInput_shouldReturnEmptyList() {
         UploadResult result = new UploadResult();
-        List<Payment> payments = csvParsingService.parse(toStream(""), result);
+        List<Payment> payments = parseToList("", result);
 
         assertThat(payments).isEmpty();
         assertThat(result.getErrors()).isEmpty();
+    }
+
+    private List<Payment> parseToList(String csv, UploadResult result) {
+        List<Payment> payments = new ArrayList<>();
+        csvParsingService.parse(toStream(csv), result, payments::add);
+        return payments;
     }
 
     private InputStream toStream(String content) {

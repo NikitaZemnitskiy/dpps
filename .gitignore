@@ -24,3 +24,6 @@ build/
 
 ### Apache Ignite ###
 ignite/
+
+### Generated CSV ###
+*.csv

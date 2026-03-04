@@ -19,7 +19,6 @@ import javax.cache.Cache;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Core service for payment storage operations using the Ignite distributed cache.
@@ -38,7 +37,7 @@ public class PaymentService {
 
     /**
      * Parses a CSV file and stores payments in the distributed cache in batches.
-     * Tracks new vs updated records by checking existing keys before each batch insert.
+     * Uses lazy iteration — never loads the entire file into memory.
      *
      * @param file uploaded CSV file
      * @return result with loaded/new/updated counts and per-field error counts
@@ -49,16 +48,16 @@ public class PaymentService {
         UploadResult result = new UploadResult();
 
         try {
-            List<Payment> payments = csvParsingService.parse(file.getInputStream(), result);
-
             Map<String, Payment> batch = new HashMap<>();
-            for (Payment payment : payments) {
+
+            csvParsingService.parse(file.getInputStream(), result, payment -> {
                 batch.put(payment.getId(), payment);
                 if (batch.size() >= BATCH_SIZE) {
                     saveBatch(batch, result);
                     batch.clear();
                 }
-            }
+            });
+
             if (!batch.isEmpty()) {
                 saveBatch(batch, result);
             }
@@ -75,7 +74,7 @@ public class PaymentService {
 
     /**
      * Deletes payments from the cache. If a time range is provided, uses a ScanQuery
-     * to find matching keys; otherwise clears the entire cache.
+     * to find matching keys in batches; otherwise clears the entire cache.
      *
      * @param from start of the range, or {@code null} to delete all
      * @param to   end of the range, or {@code null} to delete all
@@ -87,18 +86,27 @@ public class PaymentService {
         if (from != null && to != null) {
             ScanQuery<String, Payment> query = new ScanQuery<>(new PaymentTimeRangeFilter(from, to));
 
-            Set<String> keysToDelete;
+            int total = 0;
+            Set<String> batch = new HashSet<>();
+
             try (QueryCursor<Cache.Entry<String, Payment>> cursor = cache.query(query)) {
-                keysToDelete = cursor.getAll().stream()
-                        .map(Cache.Entry::getKey)
-                        .collect(Collectors.toSet());
+                for (Cache.Entry<String, Payment> entry : cursor) {
+                    batch.add(entry.getKey());
+                    if (batch.size() >= BATCH_SIZE) {
+                        cache.removeAll(batch);
+                        total += batch.size();
+                        batch.clear();
+                    }
+                }
             }
 
-            if (!keysToDelete.isEmpty()) {
-                cache.removeAll(keysToDelete);
+            if (!batch.isEmpty()) {
+                cache.removeAll(batch);
+                total += batch.size();
             }
-            log.info("Deleted {} payments in range [{} — {}]", keysToDelete.size(), from, to);
-            return new DeleteResult(keysToDelete.size());
+
+            log.info("Deleted {} payments in range [{} — {}]", total, from, to);
+            return new DeleteResult(total);
         } else {
             int size = cache.size();
             cache.clear();
@@ -109,6 +117,7 @@ public class PaymentService {
 
     /**
      * Retrieves payments within the given time range using a distributed ScanQuery.
+     * Iterates the cursor lazily instead of loading all entries at once.
      * The range must not exceed 1 week.
      *
      * @param from start of the range
@@ -122,9 +131,10 @@ public class PaymentService {
         ScanQuery<String, Payment> query = new ScanQuery<>(new PaymentTimeRangeFilter(from, to));
 
         try (QueryCursor<Cache.Entry<String, Payment>> cursor = getCache().query(query)) {
-            List<Payment> payments = cursor.getAll().stream()
-                    .map(Cache.Entry::getValue)
-                    .collect(Collectors.toList());
+            List<Payment> payments = new ArrayList<>();
+            for (Cache.Entry<String, Payment> entry : cursor) {
+                payments.add(entry.getValue());
+            }
             log.debug("ScanQuery [{} — {}] returned {} payments", from, to, payments.size());
             return payments;
         }

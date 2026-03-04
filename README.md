@@ -147,6 +147,26 @@ A ready-to-use Postman collection is included in the `postman/` directory for ma
 | Statistics by Bank | Aggregation with all metrics |
 | Statistics by Connection | Aggregation with GENERAL metrics |
 
+## Load Testing — CSV Generator
+
+A built-in Java utility generates CSV files with random payment data for load testing. Located in `src/test/java` — no external dependencies required.
+
+```bash
+# Compile and generate 1 million rows
+./mvnw -q test-compile exec:java \
+  -Dexec.mainClass="com.zemnitskiy.dpps.util.CsvGenerator" \
+  -Dexec.classpathScope=test \
+  -Dexec.args="-n 1000000 -o payments-1m.csv"
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-n` | Number of rows | 1000 |
+| `-o` | Output file | payments-generated.csv |
+| `--banks` | Number of banks | 10 |
+| `--min` / `--max` | Payment amount range | 1.0 — 10000.0 |
+| `--start` / `--end` | Date range (yyyy-MM-dd) | 2026-01-01 — 2026-12-31 |
+
 ## Running Tests
 
 ```bash
