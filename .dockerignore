@@ -1,7 +1,11 @@
-.idea
-target
-*.iml
 .git
-.mvn/wrapper/maven-wrapper.jar
-node_modules
+.idea
+.mvn
+ignite
+target
+postman
+*.iml
 *.md
+docker-compose.yml
+nginx.conf
+realm-export.json
