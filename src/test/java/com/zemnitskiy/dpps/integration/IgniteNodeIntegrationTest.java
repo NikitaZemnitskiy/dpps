@@ -1,4 +1,4 @@
-package com.zemnitskiy.dpps;
+package com.zemnitskiy.dpps.integration;
 
 import com.zemnitskiy.dpps.config.IgniteConfig;
 import com.zemnitskiy.dpps.model.Payment;
@@ -8,11 +8,13 @@ import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cluster.ClusterState;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Embedded Ignite Node")
+@Tag("integration")
 class IgniteNodeIntegrationTest extends BaseIntegrationTest {
 
     @Test

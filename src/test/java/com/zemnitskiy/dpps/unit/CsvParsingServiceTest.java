@@ -1,10 +1,11 @@
-package com.zemnitskiy.dpps;
+package com.zemnitskiy.dpps.unit;
 
 import com.zemnitskiy.dpps.dto.UploadResult;
 import com.zemnitskiy.dpps.model.Payment;
 import com.zemnitskiy.dpps.service.CsvParsingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -20,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Tests pure CSV parsing and validation logic.
  */
 @DisplayName("CsvParsingService — Unit Tests")
+@Tag("unit")
 class CsvParsingServiceTest {
 
     private CsvParsingService csvParsingService;

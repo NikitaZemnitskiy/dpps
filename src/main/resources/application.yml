@@ -17,6 +17,9 @@ server:
 ignite:
   instance:
     name: ${IGNITE_INSTANCE_NAME:payment-ignite}
+  failure-detection-timeout: 30000
+  cache:
+    backups: 1
 
 management:
   endpoints:

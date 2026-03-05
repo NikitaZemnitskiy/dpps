@@ -1,16 +1,18 @@
-package com.zemnitskiy.dpps;
+package com.zemnitskiy.dpps.integration;
 
 import com.zemnitskiy.dpps.config.IgniteConfig;
 import com.zemnitskiy.dpps.dto.UploadResult;
 import com.zemnitskiy.dpps.model.Payment;
 import org.apache.ignite.IgniteCache;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("POST /api/payments/upload")
+@Tag("integration")
 class PaymentUploadIntegrationTest extends BaseIntegrationTest {
 
     @Test

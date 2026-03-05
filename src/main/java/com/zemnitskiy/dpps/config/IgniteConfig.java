@@ -20,16 +20,21 @@ public class IgniteConfig {
     @Value("${ignite.instance.name}")
     private String instanceName;
 
+    @Value("${ignite.failure-detection-timeout:10000}")
+    private long failureDetectionTimeout;
+
+    @Value("${ignite.cache.backups:1}")
+    private int cacheBackups;
+
     @Bean
     public IgniteConfiguration igniteConfiguration() {
         IgniteConfiguration cfg = new IgniteConfiguration();
         cfg.setIgniteInstanceName(instanceName);
-
-        cfg.setFailureDetectionTimeout(30000);
+        cfg.setFailureDetectionTimeout(failureDetectionTimeout);
 
         CacheConfiguration<String, Payment> cacheCfg = new CacheConfiguration<>(PAYMENTS_CACHE);
+        cacheCfg.setBackups(cacheBackups);
         cacheCfg.setCacheMode(CacheMode.PARTITIONED);
-        cacheCfg.setBackups(1);
         cacheCfg.setAtomicityMode(CacheAtomicityMode.ATOMIC);
         cfg.setCacheConfiguration(cacheCfg);
 

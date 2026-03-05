@@ -1,4 +1,4 @@
-package com.zemnitskiy.dpps;
+package com.zemnitskiy.dpps.integration;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.zemnitskiy.dpps.config.IgniteConfig;
@@ -7,6 +7,7 @@ import com.zemnitskiy.dpps.model.Payment;
 import org.apache.ignite.IgniteCache;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -18,6 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 
 @DisplayName("Payment CRUD — GET & DELETE /api/payments")
+@Tag("integration")
 class PaymentCrudIntegrationTest extends BaseIntegrationTest {
 
     // ==================== GET /api/payments ====================

@@ -1,4 +1,4 @@
-package com.zemnitskiy.dpps;
+package com.zemnitskiy.dpps.integration;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -167,10 +167,22 @@ A built-in Java utility generates CSV files with random payment data for load te
 | `--min` / `--max` | Payment amount range | 1.0 — 10000.0 |
 | `--start` / `--end` | Date range (yyyy-MM-dd) | 2026-01-01 — 2026-12-31 |
 
-## Running Tests
+## Running ALL Tests
 
 ```bash
 ./mvnw test
+```
+
+## Running only Unit Tests
+
+```bash
+./mvnw test -Dgroups=unit
+```
+
+## Running only Integration Tests
+
+```bash
+./mvnw test -Dgroups=integration
 ```
 
 Integration tests use an embedded single-node Ignite instance with mocked security.

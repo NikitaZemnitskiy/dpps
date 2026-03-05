@@ -1,6 +1,7 @@
-package com.zemnitskiy.dpps;
+package com.zemnitskiy.dpps.integration;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DisplayName("Security")
+@Tag("integration")
 class SecurityIntegrationTest extends BaseIntegrationTest {
 
     @Test
