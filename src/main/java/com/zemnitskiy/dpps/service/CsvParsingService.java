@@ -12,8 +12,6 @@ import org.springframework.stereotype.Service;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.function.Consumer;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
@@ -90,17 +88,12 @@ public class CsvParsingService {
             valid = false;
         }
 
-        LocalDateTime dateTime = null;
+        String dateTime = null;
         if (isBlank(csvPayment.getDateTime())) {
             result.incrementMissing(FIELD_DATETIME);
             valid = false;
         } else {
-            try {
-                dateTime = LocalDateTime.parse(csvPayment.getDateTime().trim());
-            } catch (DateTimeParseException e) {
-                result.incrementInvalid(FIELD_DATETIME);
-                valid = false;
-            }
+            dateTime = csvPayment.getDateTime().trim();
         }
 
         String amountStr = csvPayment.getAmountValue();

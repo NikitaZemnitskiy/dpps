@@ -12,7 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.Set;
 
 /**
@@ -39,8 +38,8 @@ public class StatisticsController {
     public ResponseEntity<StatisticsResponse> getStatistics(
             @RequestParam @NotNull AggregationType aggregation,
             @RequestParam @NotEmpty Set<MetricCategory> metrics,
-            @RequestParam(required = false) LocalDateTime from,
-            @RequestParam(required = false) LocalDateTime to) {
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
         log.info("GET /api/statistics aggregation={} metrics={} from={} to={}", aggregation, metrics, from, to);
         StatisticsResponse response = statisticsService.calculateStatistics(aggregation, metrics, from, to);
         return ResponseEntity.ok(response);

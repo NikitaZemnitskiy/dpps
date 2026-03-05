@@ -15,7 +15,11 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Orchestrates MapReduce-based statistics computation.
@@ -41,7 +45,7 @@ public class StatisticsService {
      */
     public StatisticsResponse calculateStatistics(AggregationType aggregation,
                                                    Set<MetricCategory> metrics,
-                                                   LocalDateTime from, LocalDateTime to) {
+                                                   String from, String to) {
         long start = System.currentTimeMillis();
 
         Collection<Map<String, PartialStats>> nodeResults =
@@ -90,10 +94,7 @@ public class StatisticsService {
                 Instant.ofEpochSecond(avgEpoch), ZoneOffset.UTC);
         String avgFormatted = avgDt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
-        String minFormatted = stats.getMinDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        String maxFormatted = stats.getMaxDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-
-        return new DateTimeStats(minFormatted, maxFormatted, avgFormatted);
+        return new DateTimeStats(stats.getMinDateTime(), stats.getMaxDateTime(), avgFormatted);
     }
 
     private double roundTo4(double value) {

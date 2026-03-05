@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,7 +39,7 @@ class PaymentCrudIntegrationTest extends BaseIntegrationTest {
             List<Payment> payments = parseResponse(result, new TypeReference<>() {});
             assertThat(payments)
                     .hasSize(5)
-                    .allMatch(p -> p.getDateTime().toLocalDate().equals(LocalDate.of(2026, 2, 20)));
+                    .allMatch(p -> p.getDateTime().startsWith("2026-02-20"));
         }
 
         @Test

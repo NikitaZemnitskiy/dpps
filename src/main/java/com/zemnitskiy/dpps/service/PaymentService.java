@@ -18,7 +18,12 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.cache.Cache;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Core service for payment storage operations using the Ignite distributed cache.
@@ -80,7 +85,7 @@ public class PaymentService {
      * @param to   end of the range, or {@code null} to delete all
      * @return result with the number of deleted records
      */
-    public DeleteResult deletePayments(LocalDateTime from, LocalDateTime to) {
+    public DeleteResult deletePayments(String from, String to) {
         IgniteCache<String, Payment> cache = getCache();
 
         if (from != null && to != null) {
@@ -125,7 +130,7 @@ public class PaymentService {
      * @return list of matching payments
      * @throws IllegalArgumentException if the range is invalid or exceeds 1 week
      */
-    public List<Payment> getPayments(LocalDateTime from, LocalDateTime to) {
+    public List<Payment> getPayments(String from, String to) {
         validateTimeRange(from, to);
 
         ScanQuery<String, Payment> query = new ScanQuery<>(new PaymentTimeRangeFilter(from, to));
@@ -159,12 +164,15 @@ public class PaymentService {
         return ignite.cache(IgniteConfig.PAYMENTS_CACHE);
     }
 
-    private void validateTimeRange(LocalDateTime from, LocalDateTime to) {
-        if (from.isAfter(to)) {
+    private void validateTimeRange(String from, String to) {
+        LocalDateTime fromDt = LocalDateTime.parse(from);
+        LocalDateTime toDt = LocalDateTime.parse(to);
+
+        if (fromDt.isAfter(toDt)) {
             throw new IllegalArgumentException("'from' must be before 'to'");
         }
 
-        Duration duration = Duration.between(from, to);
+        Duration duration = Duration.between(fromDt, toDt);
         if (duration.compareTo(MAX_RANGE) > 0) {
             throw new IllegalArgumentException("Time range must not exceed 1 week");
         }
