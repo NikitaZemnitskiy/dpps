@@ -123,7 +123,7 @@ class CsvParsingServiceTest {
     void fieldsTrimmed_shouldReturnCleanData() {
         String csv = """
                 DateTime,Sender,Receiver,Amount,ID
-                 2026-02-20T12:00 , Bank A , Bank B , 100 , X1\s
+                 2026-02-20T12:00 , Bank A , Bank B , 100 , X1
                 """;
 
         UploadResult result = new UploadResult();

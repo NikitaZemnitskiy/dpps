@@ -18,12 +18,11 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.cache.Cache;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Core service for payment storage operations using the Ignite distributed cache.
@@ -121,27 +120,20 @@ public class PaymentService {
     }
 
     /**
-     * Retrieves payments within the given time range using a distributed ScanQuery.
-     * Iterates the cursor lazily instead of loading all entries at once.
-     * The range must not exceed 1 week.
+     * Streams payments within the given time range to a consumer callback.
+     * Iterates the Ignite cursor lazily — never accumulates all entries in memory.
      *
-     * @param from start of the range
-     * @param to   end of the range
-     * @return list of matching payments
-     * @throws IllegalArgumentException if the range is invalid or exceeds 1 week
+     * @param from     start of the range (ISO 8601)
+     * @param to       end of the range (ISO 8601)
+     * @param consumer callback invoked for each matching payment
      */
-    public List<Payment> getPayments(String from, String to) {
-        validateTimeRange(from, to);
-
+    public void streamPayments(String from, String to, Consumer<Payment> consumer) {
         ScanQuery<String, Payment> query = new ScanQuery<>(new PaymentTimeRangeFilter(from, to));
 
         try (QueryCursor<Cache.Entry<String, Payment>> cursor = getCache().query(query)) {
-            List<Payment> payments = new ArrayList<>();
             for (Cache.Entry<String, Payment> entry : cursor) {
-                payments.add(entry.getValue());
+                consumer.accept(entry.getValue());
             }
-            log.debug("ScanQuery [{} — {}] returned {} payments", from, to, payments.size());
-            return payments;
         }
     }
 
@@ -164,7 +156,14 @@ public class PaymentService {
         return ignite.cache(IgniteConfig.PAYMENTS_CACHE);
     }
 
-    private void validateTimeRange(String from, String to) {
+    /**
+     * Validates that the time range is well-formed, from &lt; to, and does not exceed 1 week.
+     * Must be called before streaming to ensure errors produce proper 400 responses.
+     *
+     * @throws IllegalArgumentException  if from &gt; to or range exceeds 1 week
+     * @throws java.time.format.DateTimeParseException if from/to cannot be parsed
+     */
+    public void validateTimeRange(String from, String to) {
         LocalDateTime fromDt = LocalDateTime.parse(from);
         LocalDateTime toDt = LocalDateTime.parse(to);
 

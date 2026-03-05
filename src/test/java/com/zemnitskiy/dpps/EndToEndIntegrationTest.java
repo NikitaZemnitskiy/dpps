@@ -11,6 +11,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DisplayName("End-to-End Flows")
@@ -28,9 +29,13 @@ class EndToEndIntegrationTest extends BaseIntegrationTest {
 
         performUpload(csv);
 
-        MvcResult result = mockMvc.perform(get("/api/payments")
+        MvcResult asyncResult = mockMvc.perform(get("/api/payments")
                         .param("from", "2026-02-25T00:00")
                         .param("to", "2026-02-25T23:59"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        MvcResult result = mockMvc.perform(asyncDispatch(asyncResult))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -54,9 +59,13 @@ class EndToEndIntegrationTest extends BaseIntegrationTest {
                         .param("to", "2026-02-20T23:59"))
                 .andExpect(status().isOk());
 
-        MvcResult result = mockMvc.perform(get("/api/payments")
+        MvcResult asyncResult = mockMvc.perform(get("/api/payments")
                         .param("from", "2026-02-21T00:00")
                         .param("to", "2026-02-21T23:59"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        MvcResult result = mockMvc.perform(asyncDispatch(asyncResult))
                 .andExpect(status().isOk())
                 .andReturn();
 

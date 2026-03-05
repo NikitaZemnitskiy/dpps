@@ -33,7 +33,7 @@ public class CsvGenerator {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     public static void main(String[] args) throws IOException {
-        int rows = intArg(args, "-n", 1_000_000);
+        int rows = intArg(args, "-n", 10_000_000);
         String output = stringArg(args, "-o", "payments-generated.csv");
         int bankCount = intArg(args, "--banks", 10);
         double minValue = doubleArg(args, "--min", 1.0);

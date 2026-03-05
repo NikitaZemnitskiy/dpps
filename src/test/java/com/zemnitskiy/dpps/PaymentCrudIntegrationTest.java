@@ -15,6 +15,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 
 @DisplayName("Payment CRUD — GET & DELETE /api/payments")
 class PaymentCrudIntegrationTest extends BaseIntegrationTest {
@@ -30,9 +31,13 @@ class PaymentCrudIntegrationTest extends BaseIntegrationTest {
         void validRange_shouldReturnPaymentsInRange() throws Exception {
             loadTestData();
 
-            MvcResult result = mockMvc.perform(get("/api/payments")
+            MvcResult asyncResult = mockMvc.perform(get("/api/payments")
                             .param("from", "2026-02-20T00:00")
                             .param("to", "2026-02-20T23:59"))
+                    .andExpect(request().asyncStarted())
+                    .andReturn();
+
+            MvcResult result = mockMvc.perform(asyncDispatch(asyncResult))
                     .andExpect(status().isOk())
                     .andReturn();
 
@@ -47,9 +52,13 @@ class PaymentCrudIntegrationTest extends BaseIntegrationTest {
         void noMatchingPayments_shouldReturnEmptyList() throws Exception {
             loadTestData();
 
-            MvcResult result = mockMvc.perform(get("/api/payments")
+            MvcResult asyncResult = mockMvc.perform(get("/api/payments")
                             .param("from", "2025-01-01T00:00")
                             .param("to", "2025-01-02T00:00"))
+                    .andExpect(request().asyncStarted())
+                    .andReturn();
+
+            MvcResult result = mockMvc.perform(asyncDispatch(asyncResult))
                     .andExpect(status().isOk())
                     .andReturn();
 
@@ -164,9 +173,13 @@ class PaymentCrudIntegrationTest extends BaseIntegrationTest {
                             .param("to", "2026-02-20T23:59"))
                     .andExpect(status().isOk());
 
-            MvcResult result = mockMvc.perform(get("/api/payments")
+            MvcResult asyncResult = mockMvc.perform(get("/api/payments")
                             .param("from", "2026-02-20T00:00")
                             .param("to", "2026-02-20T23:59"))
+                    .andExpect(request().asyncStarted())
+                    .andReturn();
+
+            MvcResult result = mockMvc.perform(asyncDispatch(asyncResult))
                     .andExpect(status().isOk())
                     .andReturn();
 

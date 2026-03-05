@@ -1,8 +1,9 @@
 package com.zemnitskiy.dpps.controller;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zemnitskiy.dpps.dto.DeleteResult;
 import com.zemnitskiy.dpps.dto.UploadResult;
-import com.zemnitskiy.dpps.model.Payment;
 import com.zemnitskiy.dpps.service.PaymentService;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -12,8 +13,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.util.List;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * REST controller for payment CRUD operations: CSV upload, retrieval, and deletion.
@@ -26,6 +29,7 @@ import java.util.List;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final ObjectMapper objectMapper;
 
     /**
      * Uploads a CSV file and stores parsed payments in the distributed cache.
@@ -45,19 +49,39 @@ public class PaymentController {
     }
 
     /**
-     * Retrieves payments within the given time range (max 1 week).
+     * Streams payments within the given time range as a JSON array (max 1 week).
+     * Uses {@link StreamingResponseBody} with Jackson {@link JsonGenerator}
+     * to write directly to the HTTP output stream — never accumulates all payments in memory.
      *
      * @param from start of the range (ISO 8601)
      * @param to   end of the range (ISO 8601)
      */
     @GetMapping
-    public ResponseEntity<List<Payment>> getPayments(
+    public ResponseEntity<StreamingResponseBody> getPayments(
             @RequestParam @NotBlank String from,
             @RequestParam @NotBlank String to) {
         log.info("GET /api/payments from={} to={}", from, to);
-        List<Payment> payments = paymentService.getPayments(from, to);
-        log.debug("GET /api/payments returned {} records", payments.size());
-        return ResponseEntity.ok(payments);
+
+        // Validate BEFORE starting the stream — exceptions here produce 400
+        paymentService.validateTimeRange(from, to);
+
+        StreamingResponseBody body = outputStream -> {
+            try (JsonGenerator gen = objectMapper.getFactory().createGenerator(outputStream)) {
+                gen.writeStartArray();
+                paymentService.streamPayments(from, to, payment -> {
+                    try {
+                        gen.writeObject(payment);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+                gen.writeEndArray();
+            }
+        };
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     /**
