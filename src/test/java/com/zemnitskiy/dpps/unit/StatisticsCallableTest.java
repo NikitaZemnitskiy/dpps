@@ -63,7 +63,6 @@ class StatisticsCallableTest {
         return callable;
     }
 
-    @SuppressWarnings("unchecked")
     private void mockCacheWithPayments(List<Payment> payments) {
         doReturn(cache).when(ignite).cache(IgniteConfig.PAYMENTS_CACHE);
         when(ignite.name()).thenReturn("test-node");

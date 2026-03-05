@@ -144,7 +144,7 @@ class PaymentCrudIntegrationTest extends BaseIntegrationTest {
             assertThat(deleteResult.deletedCount()).isEqualTo(15);
 
             IgniteCache<String, Payment> cache = ignite.cache(IgniteConfig.PAYMENTS_CACHE);
-            assertThat(cache.size()).isEqualTo(0);
+            assertThat(cache.size()).isZero();
         }
 
         @Test
@@ -159,7 +159,7 @@ class PaymentCrudIntegrationTest extends BaseIntegrationTest {
                     .andReturn();
 
             DeleteResult deleteResult = parseResponse(result, DeleteResult.class);
-            assertThat(deleteResult.deletedCount()).isEqualTo(0);
+            assertThat(deleteResult.deletedCount()).isZero();
 
             IgniteCache<String, Payment> cache = ignite.cache(IgniteConfig.PAYMENTS_CACHE);
             assertThat(cache.size()).isEqualTo(15);

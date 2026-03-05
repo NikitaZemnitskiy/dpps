@@ -177,7 +177,7 @@ class PartialStatsTest {
         @Test
         @DisplayName("Average epoch seconds on empty stats — returns zero")
         void averageEpochSecondsOnEmpty_shouldReturnZero() {
-            assertThat(stats.getAverageEpochSeconds()).isEqualTo(0L);
+            assertThat(stats.getAverageEpochSeconds()).isZero();
         }
     }
 

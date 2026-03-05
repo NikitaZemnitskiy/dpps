@@ -40,9 +40,6 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected Ignite ignite;
 
-    @MockitoBean
-    protected JwtDecoder jwtDecoder;
-
     /**
      * 15 payment records across 2 days (2026-02-20 and 2026-02-21),
      * 3 banks (A, B, C), values from 50 to 300.

@@ -96,7 +96,7 @@ class CsvParsingServiceTest {
     @Test
     @DisplayName("Header-only CSV — returns empty list, no errors")
     void headerOnly_shouldReturnEmptyList() {
-        String csv = "DateTime,Sender,Receiver,Amount,ID\n";
+        String csv = "DateTime,Sender,Receiver,Amount,ID";
 
         UploadResult result = new UploadResult();
         List<Payment> payments = parseToList(csv, result);

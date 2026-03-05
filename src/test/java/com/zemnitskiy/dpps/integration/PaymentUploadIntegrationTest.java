@@ -77,7 +77,7 @@ class PaymentUploadIntegrationTest extends BaseIntegrationTest {
         MvcResult result = performUpload(csv);
         UploadResult uploadResult = parseResponse(result, UploadResult.class);
 
-        assertThat(uploadResult.getSuccessfullyLoaded()).isEqualTo(0);
+        assertThat(uploadResult.getSuccessfullyLoaded()).isZero();
         assertThat(uploadResult.getErrors()).isEmpty();
     }
 
