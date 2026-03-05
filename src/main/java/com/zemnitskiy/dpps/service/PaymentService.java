@@ -70,9 +70,8 @@ public class PaymentService {
             throw new PaymentProcessingException("Failed to upload payments: " + e.getMessage(), e);
         }
 
-        log.info("Upload complete: {} loaded ({} new, {} updated), {} errors",
-                result.getSuccessfullyLoaded(), result.getNewRecords(),
-                result.getUpdatedRecords(), result.getErrors().size());
+        log.info("Upload complete: {} loaded, {} errors",
+                result.getSuccessfullyLoaded(), result.getErrors().size());
         return result;
     }
 
@@ -139,17 +138,9 @@ public class PaymentService {
 
     private void saveBatch(Map<String, Payment> batch, UploadResult result) {
         IgniteCache<String, Payment> cache = getCache();
-
-        int existingCount = cache.getAll(batch.keySet()).size();
-        int newCount = batch.size() - existingCount;
-
         cache.putAll(batch);
-
         result.setSuccessfullyLoaded(result.getSuccessfullyLoaded() + batch.size());
-        result.setNewRecords(result.getNewRecords() + newCount);
-        result.setUpdatedRecords(result.getUpdatedRecords() + existingCount);
-
-        log.info("Batch uploaded: {} new, {} updated", newCount, existingCount);
+        log.info("Batch uploaded: {} payments", batch.size());
     }
 
     private IgniteCache<String, Payment> getCache() {

@@ -64,8 +64,6 @@ Response example:
 ```json
 {
   "successfullyLoaded": 1000,
-  "newRecords": 985,
-  "updatedRecords": 15,
   "errors": {
     "missing_sender": 3,
     "missing_value": 2
@@ -73,7 +71,7 @@ Response example:
 }
 ```
 
-Re-uploading the same file will report all records as `updatedRecords` since the system uses upsert semantics (key = payment ID).
+Reloading data with the same ID will replace the data in the cache, deleting all previous data.
 
 #### Get Payments (time range required, max 1 week)
 

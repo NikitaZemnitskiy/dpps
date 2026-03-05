@@ -88,7 +88,6 @@ class PaymentServiceTest {
             setupCacheMock();
             when(multipartFile.getSize()).thenReturn(1000L);
             when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
-            when(cache.getAll(anySet())).thenReturn(Map.of());
 
             List<Payment> payments = List.of(
                     new Payment("1", "2026-02-20T10:00:00", "BankA", "BankB", 100.0),
@@ -110,38 +109,6 @@ class PaymentServiceTest {
             assertThat(savedBatch).hasSize(2);
             assertThat(savedBatch).containsKeys("1", "2");
             assertThat(result.getSuccessfullyLoaded()).isEqualTo(2);
-            assertThat(result.getNewRecords()).isEqualTo(2);
-            assertThat(result.getUpdatedRecords()).isZero();
-        }
-
-        @Test
-        @DisplayName("Upload with existing records — counts updates correctly")
-        void uploadWithExistingRecords_shouldCountUpdates() throws IOException {
-            setupCacheMock();
-            when(multipartFile.getSize()).thenReturn(1000L);
-            when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
-
-            // Simulate that payment "1" already exists
-            Payment existingPayment = new Payment("1", "2026-02-20T10:00:00", "BankA", "BankB", 50.0);
-            when(cache.getAll(anySet())).thenReturn(Map.of("1", existingPayment));
-
-            List<Payment> payments = List.of(
-                    new Payment("1", "2026-02-20T10:00:00", "BankA", "BankB", 100.0),
-                    new Payment("2", "2026-02-20T11:00:00", "BankA", "BankC", 200.0)
-            );
-
-            doAnswer(invocation -> {
-                invocation.getArgument(1);
-                Consumer<Payment> consumer = invocation.getArgument(2);
-                payments.forEach(consumer);
-                return null;
-            }).when(csvParsingService).parse(any(InputStream.class), any(UploadResult.class), any());
-
-            UploadResult result = paymentService.uploadPayments(multipartFile);
-
-            assertThat(result.getSuccessfullyLoaded()).isEqualTo(2);
-            assertThat(result.getNewRecords()).isEqualTo(1);
-            assertThat(result.getUpdatedRecords()).isEqualTo(1);
         }
 
         @Test
@@ -150,7 +117,6 @@ class PaymentServiceTest {
             setupCacheMock();
             when(multipartFile.getSize()).thenReturn(100000L);
             when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
-            when(cache.getAll(anySet())).thenReturn(Map.of());
 
             // Generate 2500 payments (should trigger 3 batches: 1000, 1000, 500)
             List<Payment> payments = new ArrayList<>();
@@ -183,8 +149,6 @@ class PaymentServiceTest {
             UploadResult result = paymentService.uploadPayments(multipartFile);
 
             assertThat(result.getSuccessfullyLoaded()).isZero();
-            assertThat(result.getNewRecords()).isZero();
-            assertThat(result.getUpdatedRecords()).isZero();
         }
 
         @Test
@@ -204,7 +168,6 @@ class PaymentServiceTest {
             setupCacheMock();
             when(multipartFile.getSize()).thenReturn(1000L);
             when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
-            when(cache.getAll(anySet())).thenReturn(Map.of());
 
             doAnswer(invocation -> {
                 UploadResult result = invocation.getArgument(1);

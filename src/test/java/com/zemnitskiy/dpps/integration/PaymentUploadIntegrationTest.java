@@ -16,15 +16,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PaymentUploadIntegrationTest extends BaseIntegrationTest {
 
     @Test
-    @DisplayName("Valid CSV — all 15 records loaded as new")
+    @DisplayName("Valid CSV — all 15 records loaded")
     void validCsv_shouldUploadAllRecords() throws Exception {
         MvcResult result = performUpload(TEST_CSV);
 
         UploadResult uploadResult = parseResponse(result, UploadResult.class);
 
         assertThat(uploadResult.getSuccessfullyLoaded()).isEqualTo(15);
-        assertThat(uploadResult.getNewRecords()).isEqualTo(15);
-        assertThat(uploadResult.getUpdatedRecords()).isEqualTo(0);
         assertThat(uploadResult.getErrors()).isEmpty();
     }
 
@@ -119,16 +117,18 @@ class PaymentUploadIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Re-upload same file — all records reported as updated, not new")
-    void reUploadSameFile_shouldReportUpdatedRecords() throws Exception {
+    @DisplayName("Re-upload same file — updates existing records")
+    void reUploadSameFile_shouldUpdateExistingRecords() throws Exception {
         performUpload(TEST_CSV);
 
         MvcResult result = performUpload(TEST_CSV);
         UploadResult uploadResult = parseResponse(result, UploadResult.class);
 
         assertThat(uploadResult.getSuccessfullyLoaded()).isEqualTo(15);
-        assertThat(uploadResult.getNewRecords()).isEqualTo(0);
-        assertThat(uploadResult.getUpdatedRecords()).isEqualTo(15);
+
+        // Cache size should remain the same (records updated, not duplicated)
+        IgniteCache<String, Payment> cache = ignite.cache(IgniteConfig.PAYMENTS_CACHE);
+        assertThat(cache.size()).isEqualTo(15);
     }
 
     @Test
