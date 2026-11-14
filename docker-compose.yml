@@ -1,16 +1,21 @@
+# Local demo cluster: Keycloak + three application nodes (each one an Ignite server node) behind nginx.
+# The credentials in this file and in realm-export.json are for local use only.
+
 x-app-node: &app-node
+  image: dpps-app
   build: .
+  restart: unless-stopped
+  # Lets in-flight requests finish (server.shutdown=graceful) before the node leaves the cluster.
+  stop_grace_period: 45s
+  # 512 MB heap + 512 MB off-heap data region + JVM overhead (metaspace, threads, network buffers).
+  mem_limit: 2g
   environment: &app-env
-    IGNITE_TCP_DISCOVERY_ADDRESSES: app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
-  depends_on:
-    keycloak:
-      condition: service_healthy
-  healthcheck:
-    test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
-    interval: 10s
-    timeout: 5s
-    retries: 20
-    start_period: 40s
+    IGNITE_DISCOVERY_ADDRESSES: app-node-1:47500..47509,app-node-2:47500..47509,app-node-3:47500..47509
+    IGNITE_DATA_REGION_MAX_SIZE: 512MB
+    JDK_JAVA_OPTIONS: -Xms512m -Xmx512m
+    # Signing keys are fetched over the Docker network; tokens carry the public issuer URL.
+    KEYCLOAK_JWK_SET_URI: http://keycloak:8090/realms/payment-system/protocol/openid-connect/certs
+    KEYCLOAK_ISSUER_URI: http://localhost:8090/realms/payment-system
   networks:
     - dpps-network
 
@@ -18,26 +23,24 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.2
     container_name: keycloak
+    restart: unless-stopped
     environment:
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
-      - KC_HEALTH_ENABLED=true
-      - KC_METRICS_ENABLED=true
-      - KC_HOSTNAME_STRICT=false
-      - KC_HOSTNAME_STRICT_HTTPS=false
-      - KC_HTTP_PORT=8090
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HTTP_PORT: 8090
+      KC_HEALTH_ENABLED: "true"
+      # Tokens always get this issuer, no matter which host name a client used to reach Keycloak.
+      KC_HOSTNAME_URL: http://localhost:8090
     ports:
       - "8090:8090"
     volumes:
-      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
-    command:
-      - start-dev
-      - --import-realm
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    command: ["start-dev", "--import-realm"]
     healthcheck:
-      test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/localhost/8090"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8090 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"status\": \"UP\"' <&3"]
       interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 30
       start_period: 30s
     networks:
       - dpps-network
@@ -64,12 +67,13 @@ services:
       IGNITE_INSTANCE_NAME: payment-ignite-3
 
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: nginx
+    restart: unless-stopped
     ports:
       - "80:80"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       app-node-1:
         condition: service_healthy
