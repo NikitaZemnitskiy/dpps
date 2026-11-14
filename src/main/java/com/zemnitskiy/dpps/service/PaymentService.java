@@ -8,6 +8,7 @@ import com.zemnitskiy.dpps.dto.UploadResult;
 import com.zemnitskiy.dpps.exception.ClusterUnavailableException;
 import com.zemnitskiy.dpps.exception.CsvParsingException;
 import com.zemnitskiy.dpps.exception.InsufficientStorageException;
+import com.zemnitskiy.dpps.exception.PaymentDataLostException;
 import com.zemnitskiy.dpps.model.Payment;
 import com.zemnitskiy.dpps.model.TimeRange;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,7 @@ public class PaymentService {
     private final Ignite ignite;
     private final CsvParsingService csvParsingService;
     private final ClusterMemoryGuard memoryGuard;
+    private final PartitionLossGuard partitionLossGuard;
     private final AppProperties properties;
 
     /**
@@ -56,9 +58,11 @@ public class PaymentService {
      * @throws CsvParsingException           if the file isn't a usable payments CSV; valid rows before the problem
      *                                       are stored and the message says how many
      * @throws InsufficientStorageException  if the cluster memory is nearly full (checked before every batch)
+     * @throws PaymentDataLostException      if payments were lost and the loss hasn't been acknowledged yet
      * @throws ClusterUnavailableException   if writing to the cluster fails
      */
     public UploadResult uploadPayments(MultipartFile file) {
+        partitionLossGuard.ensureNoDataLoss();
         long started = System.nanoTime();
         UploadReport report = new UploadReport();
         BatchWriter writer = new BatchWriter(cache(), properties.upload().batchSize(), report, memoryGuard);
@@ -74,6 +78,7 @@ public class PaymentService {
             writer.flush();
         } catch (CacheException | IgniteException e) {
             log.error("Storing payments failed after {} rows", report.loaded(), e);
+            partitionLossGuard.ensureNoDataLoss();
             throw new ClusterUnavailableException("Storing payments failed after " + payments(report.loaded())
                     + " had been saved, because the cluster is unavailable; try again later. " + REUPLOAD_HINT, e);
         } catch (IOException e) {
@@ -94,30 +99,41 @@ public class PaymentService {
     /**
      * Streams the payments within {@code range} to {@code consumer}, entry by entry, without collecting them.
      * The order is unspecified.
+     *
+     * @throws PaymentDataLostException    if payments were lost and the loss hasn't been acknowledged yet
+     * @throws ClusterUnavailableException if the cluster fails while the payments are read
      */
     public void streamPayments(TimeRange range, Consumer<Payment> consumer) {
+        partitionLossGuard.ensureNoDataLoss();
         ScanQuery<String, Payment> query = new ScanQuery<>(new PaymentTimeRangeFilter(range));
         try (QueryCursor<Cache.Entry<String, Payment>> cursor = cache().query(query)) {
             for (Cache.Entry<String, Payment> entry : cursor) {
                 consumer.accept(entry.getValue());
             }
+        } catch (CacheException | IgniteException e) {
+            partitionLossGuard.ensureNoDataLoss();
+            throw new ClusterUnavailableException(
+                    "Reading payments failed because the cluster is unavailable; try again later", e);
         }
     }
 
     /**
-     * Deletes the payments within {@code range}; an unbounded range clears the whole cache.
+     * Deletes the payments within {@code range}; an unbounded range clears the whole cache. Deleting everything
+     * also acknowledges a data loss (see {@link PartitionLossGuard}), after which uploads work again.
      *
      * @return number of deleted payments
      */
     public long deletePayments(TimeRange range) {
         IgniteCache<String, Payment> cache = cache();
         if (range.isUnbounded()) {
+            partitionLossGuard.acknowledgeDataLoss();
             long size = cache.sizeLong();
             cache.clear();
             log.info("Deleted all {} payments", size);
             return size;
         }
 
+        partitionLossGuard.ensureNoDataLoss();
         int batchSize = properties.upload().batchSize();
         long deleted = 0;
         Set<String> batch = new HashSet<>();

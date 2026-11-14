@@ -7,6 +7,7 @@ import org.apache.ignite.Ignition;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.CacheWriteSynchronizationMode;
+import org.apache.ignite.cache.PartitionLossPolicy;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.DataRegionConfiguration;
 import org.apache.ignite.configuration.DataStorageConfiguration;
@@ -95,6 +96,9 @@ public class IgniteConfig {
                 .setBackups(cache.backups())
                 // A write is acknowledged only once the backup copy is written too: an accepted upload survives
                 // the loss of any single node, and backups are always consistent when they get promoted.
-                .setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
+                .setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC)
+                // If every copy of a partition is lost, refuse to use it rather than silently treating it as empty
+                // (the default) - incomplete statistics must not look like correct ones. See PartitionLossGuard.
+                .setPartitionLossPolicy(PartitionLossPolicy.READ_WRITE_SAFE);
     }
 }

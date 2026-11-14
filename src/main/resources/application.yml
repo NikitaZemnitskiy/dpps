@@ -16,8 +16,19 @@ spring:
       max-request-size: 500MB
   mvc:
     async:
-      # GET /api/payments streams up to a week of data; the container default (30s) would cut it off.
-      request-timeout: 10m
+      # No timeout for streamed GET responses: a timeout that fires after part of the body was sent can only end
+      # the response early - which looks like a complete download. Streams end when the data ends or the
+      # connection breaks; dead or stalled clients are cut off by the socket write timeout (and nginx's timeouts).
+      request-timeout: -1
+  task:
+    execution:
+      pool:
+        # Every streamed GET response holds one of these threads until it is done. The default pool stops at
+        # 8 threads and queues the rest, so eight slow readers would block every other export on the node.
+        core-size: 64
+        max-size: 64
+        allow-core-thread-timeout: true
+        keep-alive: 60s
   jackson:
     generator:
       write-bigdecimal-as-plain: true

@@ -26,9 +26,10 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         // Re-dispatches of a request that was already authorized: the completion of a streamed
-                        // response (ASYNC) and error rendering (ERROR). Denying them would only break responses
-                        // that are already being sent.
-                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
+                        // response (ASYNC) and error rendering (ERROR, or INCLUDE when the response was already
+                        // committed). Denying them would only break responses that are already being sent.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR, DispatcherType.INCLUDE)
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/payments", "/api/statistics").hasRole(Roles.READ)
                         .requestMatchers(HttpMethod.POST, "/api/payments/upload").hasRole(Roles.WRITE)

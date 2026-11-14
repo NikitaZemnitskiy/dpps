@@ -1,6 +1,7 @@
 package com.zemnitskiy.dpps.health;
 
 import com.zemnitskiy.dpps.compute.DataRegionUsageJob;
+import com.zemnitskiy.dpps.service.PartitionLossGuard;
 import lombok.RequiredArgsConstructor;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.cluster.ClusterState;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
 public class IgniteHealthIndicator implements HealthIndicator {
 
     private final Ignite ignite;
+    private final PartitionLossGuard partitionLossGuard;
 
     @Override
     public Health health() {
@@ -27,6 +29,8 @@ public class IgniteHealthIndicator implements HealthIndicator {
                 .withDetail("clusterState", state)
                 .withDetail("serverNodes", ignite.cluster().forServers().nodes().size())
                 .withDetail("dataRegionUsage", Math.round(DataRegionUsageJob.localUsage(ignite) * 100) + "%")
+                // Stays UP on purpose: the node must remain reachable so the loss can be acknowledged.
+                .withDetail("lostPartitions", partitionLossGuard.lostPartitions())
                 .build();
     }
 }

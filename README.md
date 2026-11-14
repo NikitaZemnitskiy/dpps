@@ -50,8 +50,9 @@ All endpoints except `/actuator/health` require `Authorization: Bearer <token>`.
 
 **Date-times** use one format everywhere (CSV files and query parameters): an ISO-8601 local date-time with
 optional seconds and fraction, such as `2026-02-20T12:00`, `2026-02-20T12:00:30` or `2026-02-20T12:00:30.250`.
-A space is accepted instead of `T`. Time zones and offsets are rejected; the system works with local date-times.
-In responses, date-times always include the seconds (`2026-02-20T12:00:00`).
+A space is accepted instead of `T`; years must be between 1 and 9999. Time zones and offsets are rejected; the
+system works with local date-times. In responses, date-times always include the seconds (`2026-02-20T12:00:00`).
+A parameter given with an empty value (`from=`) is an error, not "no bound".
 
 **Time ranges include both bounds** and compare real timestamps: `to=2026-02-20T23:59` means 23:59:00, so use
 `T23:59:59` (or the next day's `T00:00`) to cover a whole day.
@@ -65,7 +66,7 @@ In responses, date-times always include the seconds (`2026-02-20T12:00:00`).
 | 403 | the token lacks the role the endpoint needs |
 | 413 | file larger than 500 MB |
 | 415 | upload that is not `multipart/form-data` |
-| 503 | the cluster is temporarily unavailable (a node left mid-operation, timeout); comes with `Retry-After` |
+| 503 | the cluster is temporarily unavailable (a node left mid-operation, timeout; comes with `Retry-After`), or payments were lost and the loss hasn't been acknowledged yet (see [Durability](#durability)) |
 | 507 | the cluster is running out of memory; the upload was refused or stopped |
 | 500 | unexpected error; the message carries a reference to the log entry, never internal details |
 
@@ -95,7 +96,7 @@ Every row is validated. Invalid rows are skipped and counted; the rest is stored
 | `missing_<field>` | empty `id`, `sender`, `receiver`, `datetime` or `value` |
 | `invalid_datetime` | not a valid date-time in the format above (e.g. `2026-02-30T10:00`, `20.02.2026`) |
 | `invalid_value` | not a positive amount in plain decimal notation (`-5`, `0`, `1e3`, `1,000`, `abc`) |
-| `invalid_id`, `invalid_sender`, `invalid_receiver` | longer than 255 characters |
+| `invalid_id`, `invalid_sender`, `invalid_receiver` | longer than 255 characters; bank names also must not contain `->` |
 | `invalid_csv_row` | the row has fewer columns than the header (or extra non-empty ones) |
 
 `errors` counts problems, so a row with two problems adds to two codes but to `rejected` only once.
@@ -105,8 +106,8 @@ Amounts are stored as exact decimals.
   replaces the earlier payment; `successfullyLoaded` counts every stored row. Uploading the same file twice is
   therefore harmless.
 - **The whole file is rejected (400)** if required columns are missing from the header, or if the CSV syntax is
-  broken (e.g. an unterminated quote). In the second case, valid rows before the broken line are stored, and the
-  message gives the line number and how many payments were stored.
+  broken (an unterminated quote, or a line longer than 64K characters). In the second case, valid rows before the
+  broken line are stored, and the message gives the line number and how many payments were stored.
 - **Uploads stop before the cluster runs out of memory (507)**, see [Capacity](#memory-and-capacity). The
   message says how many payments were stored.
 
@@ -123,8 +124,10 @@ curl "http://localhost/api/payments?from=2026-02-20T00:00&to=2026-02-20T23:59:59
 ```
 
 Both bounds are required and the range may span at most 7 days. The result is streamed as it is read from the
-cluster, so a large range never has to fit into memory. The order is unspecified. If the cluster fails halfway, the
-JSON array is left unterminated, so clients see a broken response rather than a silently truncated list.
+cluster, so a large range never has to fit into memory; the order is unspecified. A stream has no time limit, and
+each node serves up to 64 streams at a time. If reading fails before any data was sent, the response is a normal
+error (e.g. 503). If it fails later, the connection is aborted, so clients see a broken transfer, never a list that
+merely looks complete.
 
 ### Delete payments: `DELETE /api/payments` (`payments-write`)
 
@@ -165,7 +168,7 @@ Groups are sorted by key, and only the requested metric sections appear.
 |-------------|-----------|---------|
 | `BY_DATE` | `yyyy-MM-dd` | payments of that calendar day |
 | `BY_BANK` | bank name | every payment has two sides: `-amount` for the sender and `+amount` for the receiver. `count` is the number of payments the bank took part in, and `sum` is its net position. |
-| `BY_CONNECTION` | `Sender-Receiver` | payments in that direction (`A-B` and `B-A` are different groups) |
+| `BY_CONNECTION` | `Sender -> Receiver` | payments in that direction (`A -> B` and `B -> A` are different groups); bank names can't contain `->`, so keys are unambiguous |
 
 | Metric | Fields |
 |--------|--------|
@@ -203,6 +206,8 @@ Groups are sorted by key, and only the requested metric sections appear.
   every batch, how full the fullest node's data region is.
 - **GET and DELETE** use distributed scan queries whose filter runs on the data nodes, so only matching entries
   cross the network; DELETE transfers only the keys.
+- **nginx** re-resolves the node names through Docker's DNS, so a node recreated with a new IP address is found
+  again without restarting nginx.
 
 ## Operations
 
@@ -240,10 +245,19 @@ docker-compose limits each container to 2 GB (512 MB heap, 512 MB data region, J
 
 ### Durability
 
-The grid is in-memory. Losing any single node loses nothing: backups are promoted and new backups are rebuilt on the
-remaining nodes. Losing two nodes at the same time, or restarting the whole cluster, loses data. There is no
-persistence, so the source files are the system of record. Crashed nodes are restarted by Docker
+The grid is in-memory, and the source files are the system of record. Losing any single node loses nothing: its
+backups are promoted and new backups are rebuilt on the remaining nodes. Crashed nodes are restarted by Docker
 (`restart: unless-stopped`) and rejoin the cluster.
+
+Losing two nodes before the backups have been rebuilt loses the payments whose two copies were on them:
+
+- **The cluster never answers with silently incomplete data.** The cache uses Ignite's
+  `PartitionLossPolicy.READ_WRITE_SAFE`. While lost partitions exist, statistics, GET and uploads return 503 with an
+  explanation, and the health details show `lostPartitions`. To recover, delete all payments
+  (`DELETE /api/payments`), which acknowledges the loss, and upload the source files again.
+- **If two of three nodes fail abruptly at the same moment**, the survivor can't tell whether it is the one that has
+  been cut off. Ignite then declares it segmented and stops it (split-brain protection); Docker restarts it with an
+  empty store. Restarting the whole cluster likewise starts empty.
 
 ### Health, shutdown, logs
 

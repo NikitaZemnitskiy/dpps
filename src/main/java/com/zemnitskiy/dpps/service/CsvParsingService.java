@@ -7,14 +7,17 @@ import com.opencsv.ICSVParser;
 import com.opencsv.exceptions.CsvMalformedLineException;
 import com.opencsv.exceptions.CsvMultilineLimitBrokenException;
 import com.opencsv.exceptions.CsvValidationException;
+import com.zemnitskiy.dpps.compute.StatisticsTask;
 import com.zemnitskiy.dpps.exception.CsvParsingException;
 import com.zemnitskiy.dpps.model.Payment;
 import com.zemnitskiy.dpps.util.DateTimes;
 import org.springframework.stereotype.Service;
 
+import java.io.FilterReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -42,6 +45,11 @@ public class CsvParsingService {
 
     /** Longest ID or bank name accepted; protects the cluster from absurd values. */
     static final int MAX_TEXT_LENGTH = 255;
+    /**
+     * Longest line read at all. A line is held in memory as a whole, so without a limit a single huge line (the
+     * upload limit is 500 MB) could exhaust the heap.
+     */
+    static final int MAX_LINE_LENGTH = 64 * 1024;
     private static final int MAX_AMOUNT_LENGTH = 32;
     /** Plain decimal notation only: no sign other than '+', no exponent, no thousands separators. */
     private static final Pattern PLAIN_DECIMAL = Pattern.compile("\\+?(\\d+(\\.\\d*)?|\\.\\d+)");
@@ -58,7 +66,8 @@ public class CsvParsingService {
      * @throws IOException         if reading {@code input} fails
      */
     public void parse(InputStream input, UploadReport report, Consumer<Payment> consumer) throws IOException {
-        CSVReader reader = new CSVReaderBuilder(new InputStreamReader(input, StandardCharsets.UTF_8))
+        CSVReader reader = new CSVReaderBuilder(
+                new LineLengthLimit(new InputStreamReader(input, StandardCharsets.UTF_8), MAX_LINE_LENGTH))
                 // RFC 4180 quoting; a backslash is an ordinary character.
                 .withCSVParser(new CSVParserBuilder().withEscapeChar(ICSVParser.NULL_CHARACTER).build())
                 // Payment fields never span lines; an unterminated quote must fail fast instead of
@@ -81,6 +90,9 @@ public class CsvParsingService {
                     consumer.accept(payment);
                 }
             }
+        } catch (LineTooLongException e) {
+            throw new CsvParsingException("Malformed CSV at line " + e.line + ": the line is longer than "
+                    + MAX_LINE_LENGTH + " characters", e);
         } catch (CsvMalformedLineException e) {
             throw new CsvParsingException("Malformed CSV at line " + e.getLineNumber() + ": unterminated quoted field", e);
         } catch (CsvMultilineLimitBrokenException e) {
@@ -97,8 +109,8 @@ public class CsvParsingService {
         }
         List<String> errors = new ArrayList<>(2);
         String id = text(row[columns.id()], "id", errors);
-        String sender = text(row[columns.sender()], "sender", errors);
-        String receiver = text(row[columns.receiver()], "receiver", errors);
+        String sender = bankName(row[columns.sender()], "sender", errors);
+        String receiver = bankName(row[columns.receiver()], "receiver", errors);
         LocalDateTime dateTime = dateTime(row[columns.dateTime()], errors);
         BigDecimal value = amount(row[columns.amount()], errors);
         if (!errors.isEmpty()) {
@@ -119,6 +131,16 @@ public class CsvParsingService {
             return null;
         }
         return value;
+    }
+
+    /** A bank name is text that can't contain the arrow used in BY_CONNECTION keys ("Bank A -> Bank B"). */
+    private static String bankName(String raw, String field, List<String> errors) {
+        String name = text(raw, field, errors);
+        if (name != null && name.contains(StatisticsTask.CONNECTION_ARROW)) {
+            errors.add("invalid_" + field);
+            return null;
+        }
+        return name;
     }
 
     private static LocalDateTime dateTime(String raw, List<String> errors) {
@@ -159,6 +181,56 @@ public class CsvParsingService {
             }
         }
         return true;
+    }
+
+    /** Counts characters per line and fails as soon as a line exceeds the limit. */
+    private static final class LineLengthLimit extends FilterReader {
+
+        private final int maxLength;
+        private int length;
+        private long line = 1;
+
+        LineLengthLimit(Reader in, int maxLength) {
+            super(in);
+            this.maxLength = maxLength;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int c = super.read();
+            if (c >= 0) {
+                count((char) c);
+            }
+            return c;
+        }
+
+        @Override
+        public int read(char[] buffer, int offset, int count) throws IOException {
+            int read = super.read(buffer, offset, count);
+            for (int i = offset; i < offset + read; i++) {
+                count(buffer[i]);
+            }
+            return read;
+        }
+
+        private void count(char c) throws LineTooLongException {
+            if (c == '\n') {
+                line++;
+                length = 0;
+            } else if (c != '\r' && ++length > maxLength) {
+                throw new LineTooLongException(line);
+            }
+        }
+    }
+
+    private static final class LineTooLongException extends IOException {
+
+        private final long line;
+
+        LineTooLongException(long line) {
+            super("Line " + line + " is too long");
+            this.line = line;
+        }
     }
 
     /** Positions of the required columns, resolved from the header row. */

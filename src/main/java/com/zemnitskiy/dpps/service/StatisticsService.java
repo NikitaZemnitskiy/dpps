@@ -9,6 +9,7 @@ import com.zemnitskiy.dpps.dto.StatisticsResponse.GeneralStats;
 import com.zemnitskiy.dpps.dto.StatisticsResponse.GroupStats;
 import com.zemnitskiy.dpps.dto.StatisticsResponse.ValueStats;
 import com.zemnitskiy.dpps.exception.ClusterUnavailableException;
+import com.zemnitskiy.dpps.exception.PaymentDataLostException;
 import com.zemnitskiy.dpps.model.AggregationType;
 import com.zemnitskiy.dpps.model.MetricCategory;
 import com.zemnitskiy.dpps.model.TimeRange;
@@ -32,10 +33,12 @@ import java.util.TreeMap;
 public class StatisticsService {
 
     private final Ignite ignite;
+    private final PartitionLossGuard partitionLossGuard;
     private final AppProperties.Statistics settings;
 
-    public StatisticsService(Ignite ignite, AppProperties properties) {
+    public StatisticsService(Ignite ignite, PartitionLossGuard partitionLossGuard, AppProperties properties) {
         this.ignite = ignite;
+        this.partitionLossGuard = partitionLossGuard;
         this.settings = properties.statistics();
     }
 
@@ -44,10 +47,12 @@ public class StatisticsService {
      * @param metrics     which metric sections to include (at least one)
      * @param range       only payments within this range are counted
      * @return one entry per group, sorted by group key
+     * @throws PaymentDataLostException    if payments were lost and the loss hasn't been acknowledged yet
      * @throws ClusterUnavailableException if the cluster topology kept changing or the computation timed out
      */
     public StatisticsResponse calculateStatistics(AggregationType aggregation, Set<MetricCategory> metrics,
                                                   TimeRange range) {
+        partitionLossGuard.ensureNoDataLoss();
         long started = System.currentTimeMillis();
         Map<String, PartialStats> groups = computeWithRetry(aggregation, range);
 
@@ -74,6 +79,7 @@ public class StatisticsService {
                 if (!StatisticsTask.isTopologyChange(e)) {
                     throw e;
                 }
+                partitionLossGuard.ensureNoDataLoss();
                 if (attempt >= settings.maxAttempts()) {
                     throw new ClusterUnavailableException("The cluster topology kept changing while statistics were"
                             + " computed (" + attempt + " attempts); please retry in a moment", e);

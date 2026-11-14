@@ -8,6 +8,7 @@ import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.CacheWriteSynchronizationMode;
+import org.apache.ignite.cache.PartitionLossPolicy;
 import org.apache.ignite.cluster.ClusterState;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.DataRegionConfiguration;
@@ -33,7 +34,7 @@ class IgniteNodeIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("payments cache: PARTITIONED, 1 backup, ATOMIC, acknowledged only after the backup is written")
+    @DisplayName("payments cache: PARTITIONED, 1 backup, ATOMIC, synchronous backups, lost partitions refused")
     void cacheConfiguration() {
         CacheConfiguration<?, ?> cfg = ignite.cache(IgniteConfig.PAYMENTS_CACHE).getConfiguration(CacheConfiguration.class);
 
@@ -41,6 +42,7 @@ class IgniteNodeIntegrationTest extends BaseIntegrationTest {
         assertThat(cfg.getBackups()).isEqualTo(1);
         assertThat(cfg.getAtomicityMode()).isEqualTo(CacheAtomicityMode.ATOMIC);
         assertThat(cfg.getWriteSynchronizationMode()).isEqualTo(CacheWriteSynchronizationMode.FULL_SYNC);
+        assertThat(cfg.getPartitionLossPolicy()).isEqualTo(PartitionLossPolicy.READ_WRITE_SAFE);
     }
 
     @Test
@@ -87,6 +89,7 @@ class IgniteNodeIntegrationTest extends BaseIntegrationTest {
         mockMvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
-                .andExpect(jsonPath("$.components.ignite.details.clusterState").value("ACTIVE"));
+                .andExpect(jsonPath("$.components.ignite.details.clusterState").value("ACTIVE"))
+                .andExpect(jsonPath("$.components.ignite.details.lostPartitions").value(0));
     }
 }

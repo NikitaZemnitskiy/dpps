@@ -95,13 +95,25 @@ class StatisticsTaskTest {
         }
 
         @Test
-        @DisplayName("BY_CONNECTION groups by direction-sensitive sender-receiver pair")
+        @DisplayName("BY_CONNECTION groups by direction-sensitive 'sender -> receiver' pair")
         void byConnection() {
             Map<String, PartialStats> groups = aggregate(AggregationType.BY_CONNECTION, TimeRange.unbounded());
 
-            assertThat(groups).containsOnlyKeys("BankA-BankB", "BankA-BankC", "BankB-BankA", "BankC-BankB");
-            assertThat(groups.get("BankA-BankB").getSum()).isEqualByComparingTo("100");
-            assertThat(groups.get("BankB-BankA").getSum()).isEqualByComparingTo("150");
+            assertThat(groups).containsOnlyKeys("BankA -> BankB", "BankA -> BankC", "BankB -> BankA", "BankC -> BankB");
+            assertThat(groups.get("BankA -> BankB").getSum()).isEqualByComparingTo("100");
+            assertThat(groups.get("BankB -> BankA").getSum()).isEqualByComparingTo("150");
+        }
+
+        @Test
+        @DisplayName("BY_CONNECTION keys stay distinct when bank names contain dashes")
+        void byConnectionWithDashes() {
+            Map<String, PartialStats> groups = new HashMap<>();
+            StatisticsTask.accumulate(AggregationType.BY_CONNECTION, TimeRange.unbounded(),
+                    payment("1", "2026-02-20T10:00", "A-B", "C", "1"), groups);
+            StatisticsTask.accumulate(AggregationType.BY_CONNECTION, TimeRange.unbounded(),
+                    payment("2", "2026-02-20T10:00", "A", "B-C", "1"), groups);
+
+            assertThat(groups).containsOnlyKeys("A-B -> C", "A -> B-C");
         }
 
         @Test
@@ -253,6 +265,17 @@ class StatisticsTaskTest {
             assertThat(scanned).containsExactly(3, 7);
             assertThat(groups.get("2026-02-20").getCount()).isEqualTo(2);
             assertThat(groups.get("2026-02-21").getCount()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("a cancelled job (e.g. its node is shutting down) fails for a retry, not with an error")
+        @SuppressWarnings("unchecked")
+        void cancelled() {
+            PartitionScanJob job = job(mock(IgniteCache.class), 3);
+            job.cancel();
+
+            assertThatThrownBy(job::execute).isInstanceOf(ComputeJobFailoverException.class);
+            assertThat(StatisticsTask.isTopologyChange(new IgniteException(new ComputeJobFailoverException("x")))).isTrue();
         }
 
         @Test

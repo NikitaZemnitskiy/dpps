@@ -68,7 +68,9 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(ClusterUnavailableException.class)
-    public ResponseEntity<ApiError> handleClusterUnavailable(ClusterUnavailableException ex) {
+    public ResponseEntity<ApiError> handleClusterUnavailable(ClusterUnavailableException ex,
+                                                             HttpServletResponse response) {
+        abortIfCommitted(ex, response);
         log.warn("Cluster operation failed: {}", ex.getMessage(), ex);
         HttpStatus status = HttpStatus.SERVICE_UNAVAILABLE;
         return ResponseEntity.status(status)
@@ -76,26 +78,43 @@ public class GlobalExceptionHandler {
                 .body(new ApiError(status.value(), status.getReasonPhrase(), ex.getMessage()));
     }
 
+    /** No Retry-After: retrying doesn't help until someone acknowledges the loss. */
+    @ExceptionHandler(PaymentDataLostException.class)
+    public ResponseEntity<ApiError> handleDataLost(PaymentDataLostException ex, HttpServletResponse response) {
+        abortIfCommitted(ex, response);
+        return error(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
     /**
      * Everything else. Spring MVC's own exceptions (unsupported media type, missing multipart part, ...) keep
      * their status code; anything unexpected becomes a 500 whose message points to the log entry.
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiError> handleOther(Exception ex, HttpServletResponse response) {
+    public ResponseEntity<ApiError> handleOther(Exception ex, HttpServletResponse response) throws Exception {
+        abortIfCommitted(ex, response);
         if (ex instanceof ErrorResponse springError) {
             HttpStatusCode status = springError.getStatusCode();
             String detail = springError.getBody().getDetail();
             return error(status, detail != null ? detail : reasonPhrase(status));
         }
-        if (response.isCommitted()) {
-            // E.g. a streamed response broke off half-way (often just a client that disconnected).
-            log.warn("Request failed after the response was committed: {}", ex.toString());
-            return null;
-        }
         String reference = UUID.randomUUID().toString().substring(0, 8);
         log.error("Unexpected error [reference {}]", reference, ex);
         return error(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Unexpected server error (reference " + reference + "); the details are in the server log");
+    }
+
+    /**
+     * A streamed response that fails after part of it was sent can't get an error status any more. Rethrowing
+     * the original exception hands it to the servlet container, which then aborts the connection: the client
+     * sees a failed transfer instead of a response that merely ends early. Output that was only buffered so far
+     * is discarded, so it can't end up in front of the error body.
+     */
+    private static <E extends Exception> void abortIfCommitted(E ex, HttpServletResponse response) throws E {
+        if (response.isCommitted()) {
+            log.warn("Request failed after the response was committed: {}", ex.toString());
+            throw ex;
+        }
+        response.resetBuffer();
     }
 
     private static ResponseEntity<ApiError> error(HttpStatusCode status, String message) {

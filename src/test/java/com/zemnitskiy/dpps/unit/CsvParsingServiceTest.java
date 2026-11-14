@@ -240,6 +240,15 @@ class CsvParsingServiceTest {
         }
 
         @Test
+        @DisplayName("bank names containing '->' are rejected (it separates sender and receiver in BY_CONNECTION keys)")
+        void arrowInBankName() {
+            parse(HEADER + "2026-02-20T12:00,Bank A->B,Bank C,1,1\n2026-02-20T12:00,Bank A,Bank->C,1,2\n");
+
+            assertThat(parsed).isEmpty();
+            assertThat(result().errors()).containsOnly(entry("invalid_sender", 1), entry("invalid_receiver", 1));
+        }
+
+        @Test
         @DisplayName("rows with too few or too many columns are rejected as invalid_csv_row")
         void wrongColumnCount() {
             parse(HEADER + """
@@ -271,6 +280,17 @@ class CsvParsingServiceTest {
                     .isInstanceOf(CsvParsingException.class)
                     .hasMessage("Malformed CSV at line 4: unterminated quoted field");
             assertThat(parsed).extracting(Payment::getId).containsExactly("1", "2");
+        }
+
+        @Test
+        @DisplayName("an absurdly long line fails fast instead of being read into memory")
+        void lineTooLong() {
+            String csv = HEADER + "2026-02-20T12:00,A,B,1,1\n" + "x".repeat(70_000) + "\n2026-02-20T12:00,A,B,1,3\n";
+
+            assertThatThrownBy(() -> parse(csv))
+                    .isInstanceOf(CsvParsingException.class)
+                    .hasMessage("Malformed CSV at line 3: the line is longer than 65536 characters");
+            assertThat(parsed).extracting(Payment::getId).containsExactly("1");
         }
 
         @Test

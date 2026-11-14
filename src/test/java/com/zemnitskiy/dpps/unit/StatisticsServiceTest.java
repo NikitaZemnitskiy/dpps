@@ -7,9 +7,11 @@ import com.zemnitskiy.dpps.config.AppProperties;
 import com.zemnitskiy.dpps.dto.StatisticsResponse;
 import com.zemnitskiy.dpps.dto.StatisticsResponse.GroupStats;
 import com.zemnitskiy.dpps.exception.ClusterUnavailableException;
+import com.zemnitskiy.dpps.exception.PaymentDataLostException;
 import com.zemnitskiy.dpps.model.AggregationType;
 import com.zemnitskiy.dpps.model.MetricCategory;
 import com.zemnitskiy.dpps.model.TimeRange;
+import com.zemnitskiy.dpps.service.PartitionLossGuard;
 import com.zemnitskiy.dpps.service.StatisticsService;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCluster;
@@ -36,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -49,6 +52,7 @@ class StatisticsServiceTest {
     private static final int MAX_ATTEMPTS = 3;
 
     private final IgniteCompute compute = mock(IgniteCompute.class);
+    private final PartitionLossGuard partitionLossGuard = mock(PartitionLossGuard.class);
     private StatisticsService service;
 
     @BeforeEach
@@ -65,7 +69,7 @@ class StatisticsServiceTest {
         AppProperties properties = new AppProperties(
                 new AppProperties.Upload(1000, 0.85, Duration.ofSeconds(1)),
                 new AppProperties.Statistics(Duration.ofSeconds(60), MAX_ATTEMPTS, Duration.ZERO));
-        service = new StatisticsService(ignite, properties);
+        service = new StatisticsService(ignite, partitionLossGuard, properties);
     }
 
     private void taskReturns(Map<String, PartialStats> groups) {
@@ -175,6 +179,18 @@ class StatisticsServiceTest {
             when(compute.execute(any(StatisticsTask.class), isNull())).thenThrow(failure);
 
             assertThatThrownBy(() -> calculate(EnumSet.of(MetricCategory.GENERAL))).isSameAs(failure);
+            verify(compute, times(1)).execute(any(StatisticsTask.class), isNull());
+        }
+
+        @Test
+        @DisplayName("lost payments are reported instead of retrying")
+        void dataLostDuringComputation() {
+            when(compute.execute(any(StatisticsTask.class), isNull()))
+                    .thenThrow(new TopologyChangedException("partition lost", null));
+            doNothing().doThrow(new PaymentDataLostException(5, 1024)).when(partitionLossGuard).ensureNoDataLoss();
+
+            assertThatThrownBy(() -> calculate(EnumSet.of(MetricCategory.GENERAL)))
+                    .isInstanceOf(PaymentDataLostException.class);
             verify(compute, times(1)).execute(any(StatisticsTask.class), isNull());
         }
 

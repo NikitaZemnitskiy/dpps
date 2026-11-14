@@ -7,10 +7,12 @@ import com.zemnitskiy.dpps.dto.UploadResult;
 import com.zemnitskiy.dpps.exception.ClusterUnavailableException;
 import com.zemnitskiy.dpps.exception.CsvParsingException;
 import com.zemnitskiy.dpps.exception.InsufficientStorageException;
+import com.zemnitskiy.dpps.exception.PaymentDataLostException;
 import com.zemnitskiy.dpps.model.Payment;
 import com.zemnitskiy.dpps.model.TimeRange;
 import com.zemnitskiy.dpps.service.ClusterMemoryGuard;
 import com.zemnitskiy.dpps.service.CsvParsingService;
+import com.zemnitskiy.dpps.service.PartitionLossGuard;
 import com.zemnitskiy.dpps.service.PaymentService;
 import com.zemnitskiy.dpps.support.ListQueryCursor;
 import org.apache.ignite.Ignite;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.mock.web.MockMultipartFile;
 
 import javax.cache.Cache;
@@ -43,6 +46,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -58,6 +63,7 @@ class PaymentServiceTest {
 
     private final IgniteCache<String, Payment> cache = mockCache();
     private final ClusterMemoryGuard memoryGuard = mock(ClusterMemoryGuard.class);
+    private final PartitionLossGuard partitionLossGuard = mock(PartitionLossGuard.class);
     private final List<Map<String, Payment>> writtenBatches = new ArrayList<>();
     private PaymentService service;
 
@@ -76,7 +82,7 @@ class PaymentServiceTest {
         AppProperties properties = new AppProperties(
                 new AppProperties.Upload(BATCH_SIZE, 0.85, Duration.ofSeconds(1)),
                 new AppProperties.Statistics(Duration.ofSeconds(60), 3, Duration.ZERO));
-        service = new PaymentService(ignite, new CsvParsingService(), memoryGuard, properties);
+        service = new PaymentService(ignite, new CsvParsingService(), memoryGuard, partitionLossGuard, properties);
     }
 
     private void memoryHas(double usage) {
@@ -166,6 +172,17 @@ class PaymentServiceTest {
         }
 
         @Test
+        @DisplayName("refuses to write while lost payments haven't been acknowledged")
+        void dataLost() {
+            doThrow(new PaymentDataLostException(3, 1024)).when(partitionLossGuard).ensureNoDataLoss();
+
+            assertThatThrownBy(() -> service.uploadPayments(csv(TestCsv.rows(3))))
+                    .isInstanceOf(PaymentDataLostException.class)
+                    .hasMessageContaining("delete all payments");
+            verify(cache, never()).putAll(anyMap());
+        }
+
+        @Test
         @DisplayName("refuses to start when the cluster memory is nearly full")
         void memoryFullUpFront() {
             memoryHas(0.90);
@@ -197,12 +214,14 @@ class PaymentServiceTest {
     class Delete {
 
         @Test
-        @DisplayName("an unbounded range clears the cache")
+        @DisplayName("an unbounded range clears the cache and acknowledges any data loss first")
         void deleteAll() {
             when(cache.sizeLong()).thenReturn(500L);
 
             assertThat(service.deletePayments(TimeRange.unbounded())).isEqualTo(500);
-            verify(cache).clear();
+            InOrder order = inOrder(partitionLossGuard, cache);
+            order.verify(partitionLossGuard).acknowledgeDataLoss();
+            order.verify(cache).clear();
         }
 
         @Test
@@ -236,6 +255,17 @@ class PaymentServiceTest {
 
         assertThat(streamed).containsExactly(p1, p2);
         assertThat(cursor.isClosed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Stream reports a cluster failure as ClusterUnavailableException")
+    @SuppressWarnings("unchecked")
+    void streamClusterFailure() {
+        when(cache.query(any(ScanQuery.class))).thenThrow(new CacheException("Failed to fetch the next page"));
+
+        assertThatThrownBy(() -> service.streamPayments(TimeRange.unbounded(), payment -> { }))
+                .isInstanceOf(ClusterUnavailableException.class)
+                .hasMessageContaining("Reading payments failed");
     }
 
     /** Small CSV generator for this test. */

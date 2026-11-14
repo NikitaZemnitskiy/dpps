@@ -97,13 +97,13 @@ class StatisticsIntegrationTest extends BaseIntegrationTest {
                     .param("aggregation", "BY_CONNECTION").param("metrics", "GENERAL,VALUE")).data();
 
             assertThat(data).hasSize(6);
-            assertThat(data.get("Bank A-Bank B").general().count()).isEqualTo(4);
-            assertThat(data.get("Bank A-Bank B").value().sum()).isEqualByComparingTo("550");
-            assertThat(data.get("Bank A-Bank C").general().count()).isEqualTo(2);
-            assertThat(data.get("Bank B-Bank A").general().count()).isEqualTo(2);
-            assertThat(data.get("Bank B-Bank C").value().sum()).isEqualByComparingTo("400");
-            assertThat(data.get("Bank C-Bank A").general().count()).isEqualTo(3);
-            assertThat(data.get("Bank C-Bank B").general().count()).isEqualTo(1);
+            assertThat(data.get("Bank A -> Bank B").general().count()).isEqualTo(4);
+            assertThat(data.get("Bank A -> Bank B").value().sum()).isEqualByComparingTo("550");
+            assertThat(data.get("Bank A -> Bank C").general().count()).isEqualTo(2);
+            assertThat(data.get("Bank B -> Bank A").general().count()).isEqualTo(2);
+            assertThat(data.get("Bank B -> Bank C").value().sum()).isEqualByComparingTo("400");
+            assertThat(data.get("Bank C -> Bank A").general().count()).isEqualTo(3);
+            assertThat(data.get("Bank C -> Bank B").general().count()).isEqualTo(1);
         }
 
         @Test
@@ -165,6 +165,14 @@ class StatisticsIntegrationTest extends BaseIntegrationTest {
                             .param("from", "yesterday").param("to", "today"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.message").value(containsString("Invalid value 'yesterday' for parameter 'from'")));
+        }
+
+        @Test
+        @DisplayName("400 for a blank bound (a blank value is not the same as leaving the parameter out)")
+        void blankBound() throws Exception {
+            mockMvc.perform(get("/api/statistics").param("aggregation", "BY_DATE").param("metrics", "GENERAL")
+                            .param("from", ""))
+                    .andExpect(status().isBadRequest());
         }
 
         @Test

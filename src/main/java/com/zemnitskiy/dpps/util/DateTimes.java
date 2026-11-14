@@ -17,6 +17,9 @@ public final class DateTimes {
             "an ISO-8601 local date-time such as 2026-02-20T12:00 or 2026-02-20T12:00:30";
 
     private static final int DATE_LENGTH = "yyyy-MM-dd".length();
+    /** Four-digit years only: keeps timestamp arithmetic (e.g. average date-times) far from overflow. */
+    private static final int MIN_YEAR = 1;
+    private static final int MAX_YEAR = 9999;
 
     private DateTimes() {
     }
@@ -30,6 +33,10 @@ public final class DateTimes {
             value = value.substring(0, DATE_LENGTH) + 'T' + value.substring(DATE_LENGTH + 1);
         }
         // ISO_LOCAL_DATE_TIME resolves strictly: 2026-02-30 or 24:00 are rejected, not adjusted.
-        return LocalDateTime.parse(value, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        LocalDateTime dateTime = LocalDateTime.parse(value, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        if (dateTime.getYear() < MIN_YEAR || dateTime.getYear() > MAX_YEAR) {
+            throw new DateTimeParseException("The year must be between " + MIN_YEAR + " and " + MAX_YEAR, text, 0);
+        }
+        return dateTime;
     }
 }

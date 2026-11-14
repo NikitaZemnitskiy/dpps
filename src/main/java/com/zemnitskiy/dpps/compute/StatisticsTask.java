@@ -49,6 +49,9 @@ import java.util.stream.IntStream;
  */
 public class StatisticsTask extends ComputeTaskAdapter<Void, Map<String, PartialStats>> {
 
+    /** Separator between sender and receiver in BY_CONNECTION keys; not allowed in bank names. */
+    public static final String CONNECTION_ARROW = "->";
+
     @Serial
     private static final long serialVersionUID = 1L;
 
@@ -128,7 +131,7 @@ public class StatisticsTask extends ComputeTaskAdapter<Void, Map<String, Partial
      *   <li>BY_DATE - key {@code yyyy-MM-dd}</li>
      *   <li>BY_BANK - every payment has two sides: {@code -value} for the sender, {@code +value} for the
      *   receiver, so a bank's {@code sum} is its net position</li>
-     *   <li>BY_CONNECTION - key {@code sender-receiver}; the direction matters</li>
+     *   <li>BY_CONNECTION - key {@code sender -> receiver}; the direction matters</li>
      * </ul>
      */
     public static void accumulate(AggregationType aggregation, TimeRange range, Payment payment,
@@ -144,8 +147,16 @@ public class StatisticsTask extends ComputeTaskAdapter<Void, Map<String, Partial
                 group(groups, payment.getSender()).add(value.negate(), dateTime);
                 group(groups, payment.getReceiver()).add(value, dateTime);
             }
-            case BY_CONNECTION -> group(groups, payment.getSender() + "-" + payment.getReceiver()).add(value, dateTime);
+            case BY_CONNECTION -> group(groups, connectionKey(payment.getSender(), payment.getReceiver())).add(value, dateTime);
         }
+    }
+
+    /**
+     * Group key of a connection, e.g. {@code Bank A -> Bank B}. Unambiguous because bank names may not contain
+     * {@value #CONNECTION_ARROW} (enforced when payments are uploaded).
+     */
+    public static String connectionKey(String sender, String receiver) {
+        return sender + " " + CONNECTION_ARROW + " " + receiver;
     }
 
     private static PartialStats group(Map<String, PartialStats> groups, String key) {
@@ -182,7 +193,8 @@ public class StatisticsTask extends ComputeTaskAdapter<Void, Map<String, Partial
             Map<String, PartialStats> groups = new HashMap<>();
             for (int partition : partitions) {
                 if (isCancelled()) {
-                    throw new IgniteException("Statistics job was cancelled");
+                    // Typically the node is shutting down: let the task run again on the remaining nodes.
+                    throw new ComputeJobFailoverException("Statistics job on node " + ignite.name() + " was cancelled");
                 }
                 scan(cache, partition, groups);
             }

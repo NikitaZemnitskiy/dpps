@@ -40,8 +40,9 @@ class DateTimesAndTimeRangeTest {
 
         @ParameterizedTest(name = "\"{0}\"")
         @ValueSource(strings = {"2026-02-20", "2026-02-20  12:00", "2026-02-30T12:00", "2026-13-01T00:00",
-                "2026-02-20T24:00", "2026-02-20T12:00Z", "2026-02-20T12:00+02:00", "20.02.2026 12:00", "", "now"})
-        @DisplayName("rejects anything else, including impossible dates and zoned values")
+                "2026-02-20T24:00", "2026-02-20T12:00Z", "2026-02-20T12:00+02:00", "20.02.2026 12:00", "", "  ", "now",
+                "0000-01-01T00:00", "+10000-01-01T00:00", "-0001-01-01T00:00", "+999999999-12-31T23:59"})
+        @DisplayName("rejects anything else, including impossible dates, zoned values and years outside 1-9999")
         void rejected(String text) {
             assertThatThrownBy(() -> DateTimes.parse(text)).isInstanceOf(DateTimeParseException.class);
         }

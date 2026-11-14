@@ -10,10 +10,12 @@ import java.time.LocalDateTime;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    /** Query parameters use exactly the same date-time format as the CSV files. */
+    /**
+     * Query parameters use exactly the same date-time format as the CSV files. A blank value is rejected rather
+     * than treated as absent: {@code DELETE ?from=&to=} must not turn into "delete everything".
+     */
     @Override
     public void addFormatters(FormatterRegistry registry) {
-        registry.addConverter(String.class, LocalDateTime.class,
-                source -> source.isBlank() ? null : DateTimes.parse(source));
+        registry.addConverter(String.class, LocalDateTime.class, DateTimes::parse);
     }
 }

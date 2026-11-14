@@ -25,9 +25,12 @@ import java.util.function.ToLongFunction;
 
 import static com.zemnitskiy.dpps.support.TestData.generatedCsv;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -59,12 +62,17 @@ class MultiNodeClusterIntegrationTest extends BaseIntegrationTest {
 
     @AfterEach
     void stopExtraNodes() {
-        cache().clear();
+        if (cache().lostPartitions().isEmpty()) {
+            cache().clear();
+        }
         for (String name : extraNodes) {
             Ignition.stop(name, true);
         }
         extraNodes.clear();
         awaitServerNodes(1);
+        // Stopping both extra nodes at once can leave (empty) partitions marked as lost; don't leak that state.
+        ignite.resetLostPartitions(List.of(IgniteConfig.PAYMENTS_CACHE));
+        cache().clear();
     }
 
     @Test
@@ -128,6 +136,40 @@ class MultiNodeClusterIntegrationTest extends BaseIntegrationTest {
 
         assertThat(byConnection()).isEqualTo(before);
         assertThat(cache().sizeLong()).isEqualTo(TOTAL_COUNT);
+    }
+
+    @Test
+    @DisplayName("losing two nodes at once: incomplete data is refused until all payments are deleted")
+    void twoNodesLostAtOnce() throws Exception {
+        Thread stop2 = new Thread(() -> Ignition.stop("dpps-test-node-2", true));
+        Thread stop3 = new Thread(() -> Ignition.stop("dpps-test-node-3", true));
+        stop2.start();
+        stop3.start();
+        stop2.join();
+        stop3.join();
+        extraNodes.clear();
+        awaitServerNodes(1);
+        await().atMost(Duration.ofSeconds(30)).until(() -> !cache().lostPartitions().isEmpty());
+
+        // Statistics, reads and uploads refuse to work on incomplete data and explain how to recover.
+        mockMvc.perform(get("/api/statistics").param("aggregation", "BY_DATE").param("metrics", "GENERAL"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.message").value(containsString("Payments were lost")));
+        mockMvc.perform(get("/api/payments").param("from", "2026-03-01T00:00").param("to", "2026-03-02T00:00"))
+                .andExpect(status().isServiceUnavailable());
+        mockMvc.perform(multipart("/api/payments/upload").file(csvFile(TEST_CSV)))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.message").value(containsString("DELETE /api/payments")));
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components.ignite.details.lostPartitions").isNumber());
+
+        // Deleting everything acknowledges the loss; afterwards the cluster works normally again.
+        mockMvc.perform(delete("/api/payments")).andExpect(status().isOk());
+        assertThat(cache().lostPartitions()).isEmpty();
+        assertThat(upload(TEST_CSV).successfullyLoaded()).isEqualTo(15);
+        assertThat(statistics(get("/api/statistics").param("aggregation", "BY_DATE").param("metrics", "GENERAL"))
+                .data().values().stream().mapToLong(g -> g.general().count()).sum()).isEqualTo(15);
     }
 
     @Test

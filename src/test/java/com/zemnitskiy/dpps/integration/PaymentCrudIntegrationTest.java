@@ -180,6 +180,20 @@ class PaymentCrudIntegrationTest extends BaseIntegrationTest {
         }
 
         @Test
+        @DisplayName("with blank bounds (e.g. unset script variables): 400 and nothing is deleted")
+        void blankBounds() throws Exception {
+            loadTestData();
+
+            mockMvc.perform(delete("/api/payments").param("from", "").param("to", ""))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(containsString("Invalid value '' for parameter")));
+            mockMvc.perform(delete("/api/payments?from&to"))
+                    .andExpect(status().isBadRequest());
+
+            assertThat(cache().size()).isEqualTo(15);
+        }
+
+        @Test
         @DisplayName("with an unparseable bound: 400 and nothing is deleted")
         void invalidBound() throws Exception {
             loadTestData();
