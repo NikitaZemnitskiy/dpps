@@ -1,103 +1,109 @@
 package com.zemnitskiy.dpps.service;
 
 import com.zemnitskiy.dpps.compute.PartialStats;
-import com.zemnitskiy.dpps.compute.StatisticsCallable;
+import com.zemnitskiy.dpps.compute.StatisticsTask;
+import com.zemnitskiy.dpps.config.AppProperties;
 import com.zemnitskiy.dpps.dto.StatisticsResponse;
-import com.zemnitskiy.dpps.dto.StatisticsResponse.*;
+import com.zemnitskiy.dpps.dto.StatisticsResponse.DateTimeStats;
+import com.zemnitskiy.dpps.dto.StatisticsResponse.GeneralStats;
+import com.zemnitskiy.dpps.dto.StatisticsResponse.GroupStats;
+import com.zemnitskiy.dpps.dto.StatisticsResponse.ValueStats;
+import com.zemnitskiy.dpps.exception.ClusterUnavailableException;
 import com.zemnitskiy.dpps.model.AggregationType;
 import com.zemnitskiy.dpps.model.MetricCategory;
-import lombok.RequiredArgsConstructor;
+import com.zemnitskiy.dpps.model.TimeRange;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ignite.Ignite;
+import org.apache.ignite.IgniteException;
+import org.apache.ignite.compute.ComputeTaskTimeoutException;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
- * Orchestrates MapReduce-based statistics computation.
- * Broadcasts a {@link StatisticsCallable} to every cluster node, then merges
- * partial results into a single response filtered by the requested metrics.
+ * Computes payment statistics with a partition-aware MapReduce over the whole cluster (see {@link StatisticsTask})
+ * and shapes the merged result into the requested metric sections.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class StatisticsService {
 
     private final Ignite ignite;
+    private final AppProperties.Statistics settings;
+
+    public StatisticsService(Ignite ignite, AppProperties properties) {
+        this.ignite = ignite;
+        this.settings = properties.statistics();
+    }
 
     /**
-     * Computes aggregated payment statistics across the entire Ignite cluster.
-     * Each node processes its local primary data; results are merged here.
-     *
-     * @param aggregation grouping strategy
-     * @param metrics     which metric categories to include in the response
-     * @param from        optional time range start (ISO 8601)
-     * @param to          optional time range end (ISO 8601)
-     * @return statistics grouped by the aggregation key
+     * @param aggregation how payments are grouped
+     * @param metrics     which metric sections to include (at least one)
+     * @param range       only payments within this range are counted
+     * @return one entry per group, sorted by group key
+     * @throws ClusterUnavailableException if the cluster topology kept changing or the computation timed out
      */
-    public StatisticsResponse calculateStatistics(AggregationType aggregation,
-                                                   Set<MetricCategory> metrics,
-                                                   String from, String to) {
-        long start = System.currentTimeMillis();
-
-        Collection<Map<String, PartialStats>> nodeResults =
-                ignite.compute().broadcast(new StatisticsCallable(aggregation, from, to));
-
-        Map<String, PartialStats> merged = new HashMap<>();
-        for (Map<String, PartialStats> nodeResult : nodeResults) {
-            nodeResult.forEach((key, stats) ->
-                    merged.merge(key, stats, PartialStats::merge));
-        }
+    public StatisticsResponse calculateStatistics(AggregationType aggregation, Set<MetricCategory> metrics,
+                                                  TimeRange range) {
+        long started = System.currentTimeMillis();
+        Map<String, PartialStats> groups = computeWithRetry(aggregation, range);
 
         Map<String, GroupStats> data = new LinkedHashMap<>();
-        merged.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> data.put(entry.getKey(), buildGroupStats(entry.getValue(), metrics)));
+        new TreeMap<>(groups).forEach((key, stats) -> data.put(key, toGroupStats(stats, metrics)));
 
-        log.info("Statistics {} computed in {}ms: {} groups from {} nodes",
-                aggregation, System.currentTimeMillis() - start, data.size(), nodeResults.size());
-
+        log.info("Statistics {} {} computed in {} ms: {} groups", aggregation, range,
+                System.currentTimeMillis() - started, data.size());
         return new StatisticsResponse(data);
     }
 
-    private GroupStats buildGroupStats(PartialStats stats, Set<MetricCategory> metrics) {
+    private Map<String, PartialStats> computeWithRetry(AggregationType aggregation, TimeRange range) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return ignite.compute(ignite.cluster().forServers())
+                        // Jobs are pinned to partitions: failing over a single job is pointless, the task is retried instead.
+                        .withNoFailover()
+                        .withTimeout(settings.timeout().toMillis())
+                        .execute(new StatisticsTask(aggregation, range), null);
+            } catch (ComputeTaskTimeoutException e) {
+                throw new ClusterUnavailableException(
+                        "The statistics computation did not finish within " + settings.timeout().toSeconds() + " s", e);
+            } catch (IgniteException e) {
+                if (!StatisticsTask.isTopologyChange(e)) {
+                    throw e;
+                }
+                if (attempt >= settings.maxAttempts()) {
+                    throw new ClusterUnavailableException("The cluster topology kept changing while statistics were"
+                            + " computed (" + attempt + " attempts); please retry in a moment", e);
+                }
+                log.warn("Cluster topology changed during the statistics computation (attempt {}/{}), retrying: {}",
+                        attempt, settings.maxAttempts(), e.getMessage());
+                pause();
+            }
+        }
+    }
+
+    private void pause() {
+        try {
+            Thread.sleep(settings.retryBackoff().toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ClusterUnavailableException("Interrupted while waiting to retry the statistics computation", e);
+        }
+    }
+
+    private static GroupStats toGroupStats(PartialStats stats, Set<MetricCategory> metrics) {
         GeneralStats general = metrics.contains(MetricCategory.GENERAL)
                 ? new GeneralStats(stats.getCount())
                 : null;
-
         ValueStats value = metrics.contains(MetricCategory.VALUE)
-                ? new ValueStats(
-                        roundTo4(stats.getMinValue()),
-                        roundTo4(stats.getMaxValue()),
-                        roundTo4(stats.getSumValue()),
-                        roundTo4(stats.getAverageValue()))
+                ? new ValueStats(stats.getMin(), stats.getMax(), stats.getSum(), stats.average())
                 : null;
-
         DateTimeStats dateTime = metrics.contains(MetricCategory.DATETIME)
-                ? buildDateTimeStats(stats)
+                ? new DateTimeStats(stats.getEarliest(), stats.getLatest(), stats.averageDateTime())
                 : null;
-
         return new GroupStats(general, value, dateTime);
-    }
-
-    private DateTimeStats buildDateTimeStats(PartialStats stats) {
-        long avgEpoch = stats.getAverageEpochSeconds();
-        LocalDateTime avgDt = LocalDateTime.ofInstant(
-                Instant.ofEpochSecond(avgEpoch), ZoneOffset.UTC);
-        String avgFormatted = avgDt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-
-        return new DateTimeStats(stats.getMinDateTime(), stats.getMaxDateTime(), avgFormatted);
-    }
-
-    private double roundTo4(double value) {
-        return Math.round(value * 10000.0) / 10000.0;
     }
 }

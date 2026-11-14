@@ -5,21 +5,65 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: http://keycloak:8090/realms/payment-system/protocol/openid-connect/certs
+          # Signing keys are fetched from Keycloak directly (inside Docker: http://keycloak:8090/...),
+          # while the issuer must match the public URL clients obtain their tokens from.
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8090/realms/payment-system/protocol/openid-connect/certs}
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8090/realms/payment-system}
+          audiences: ${KEYCLOAK_AUDIENCE:payment-service}
   servlet:
     multipart:
       max-file-size: 500MB
       max-request-size: 500MB
+  mvc:
+    async:
+      # GET /api/payments streams up to a week of data; the container default (30s) would cut it off.
+      request-timeout: 10m
+  jackson:
+    generator:
+      write-bigdecimal-as-plain: true
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 server:
   port: 8080
+  # Finish in-flight requests (e.g. an upload) before the Ignite node leaves the cluster.
+  shutdown: graceful
 
 ignite:
-  instance:
-    name: ${IGNITE_INSTANCE_NAME:payment-ignite}
-  failure-detection-timeout: 30000
+  instance-name: ${IGNITE_INSTANCE_NAME:payment-ignite}
+  # Where Ignite keeps marshaller/binary metadata; must be writable by the process.
+  work-directory: ${IGNITE_WORK_DIR:${java.io.tmpdir}/dpps-ignite}
+  failure-detection-timeout: 30s
+  # Optional: bind discovery/communication to a single address (useful for tests and multi-NIC hosts).
+  local-host: ${IGNITE_LOCAL_HOST:}
+  discovery:
+    # Static IP finder: cluster members are listed explicitly; multicast is never used.
+    addresses: ${IGNITE_DISCOVERY_ADDRESSES:127.0.0.1:47500..47509}
+    local-port: 47500
+    local-port-range: 10
+  communication:
+    local-port: 47100
   cache:
     backups: 1
+  data-region:
+    # Off-heap memory per node for payments. With 1 backup, 512MB per node holds roughly 3.5 million payments
+    # on a 3-node cluster. Uploads are refused (HTTP 507) before the region is full - see dpps.upload.
+    initial-size: ${IGNITE_DATA_REGION_INITIAL_SIZE:64MB}
+    max-size: ${IGNITE_DATA_REGION_MAX_SIZE:512MB}
+
+dpps:
+  upload:
+    batch-size: 1000
+    # Stop accepting uploads when the fullest node's data region is this full. An Ignite node whose data region
+    # overflows halts its JVM, so the guard keeps a safety margin.
+    memory-high-watermark: 0.85
+    # Readings are reused for this long. Short enough that a fast upload can't overshoot the watermark by much
+    # (~75k rows/s fill a 100MB region by ~2% in 250ms); one tiny broadcast per interval is negligible.
+    memory-check-interval: 250ms
+  statistics:
+    timeout: 60s
+    max-attempts: 3
+    retry-backoff: 500ms
 
 management:
   endpoints:
@@ -28,9 +72,11 @@ management:
         include: health
   endpoint:
     health:
-      show-details: never
+      # Anonymous callers (Docker health checks) only see UP/DOWN; authenticated readers also see cluster details.
+      show-details: when-authorized
+      roles: payments-read
 
 logging:
   level:
     org.apache.ignite: INFO
-    com.zemnitskiy.dpps: DEBUG
+    com.zemnitskiy.dpps: INFO

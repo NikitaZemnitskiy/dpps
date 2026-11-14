@@ -1,11 +1,7 @@
 spring:
   application:
     name: payment-service-test
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: https://localhost/.well-known/jwks.json
+  # The JWT issuer, audience and JWK set URI are provided by BaseIntegrationTest (a local JWKS server).
   servlet:
     multipart:
       max-file-size: 100MB
@@ -15,8 +11,23 @@ server:
   port: 0
 
 ignite:
-  instance:
-    name: payment-ignite-test
+  instance-name: payment-ignite-test
+  work-directory: ${java.io.tmpdir}/dpps-ignite-test
+  failure-detection-timeout: 10s
+  local-host: 127.0.0.1
+  discovery:
+    # Ports away from Ignite's defaults, so tests never join a locally running cluster.
+    addresses: 127.0.0.1:48500..48509
+    local-port: 48500
+  communication:
+    local-port: 48100
+  data-region:
+    initial-size: 64MB
+    max-size: 256MB
+
+dpps:
+  statistics:
+    retry-backoff: 100ms
 
 logging:
   level:

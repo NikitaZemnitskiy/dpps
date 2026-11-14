@@ -1,0 +1,31 @@
+# JVM options for every DPPS process: the Docker image, `mvn test` and `mvn spring-boot:run` all read this
+# file (as a Java @argument file), so the list lives in exactly one place.
+#
+# Apache Ignite 2.x reflects into JDK internals; on Java 17 those packages must be opened explicitly.
+# This is the set from Ignite's "Running Ignite with Java 11 or later" guide.
+# java.time is required because payments carry a LocalDateTime.
+--add-opens=java.base/jdk.internal.access=ALL-UNNAMED
+--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED
+--add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+--add-opens=java.base/sun.util.calendar=ALL-UNNAMED
+--add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED
+--add-opens=java.base/java.io=ALL-UNNAMED
+--add-opens=java.base/java.nio=ALL-UNNAMED
+--add-opens=java.base/java.net=ALL-UNNAMED
+--add-opens=java.base/java.util=ALL-UNNAMED
+--add-opens=java.base/java.util.concurrent=ALL-UNNAMED
+--add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED
+--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED
+--add-opens=java.base/java.lang=ALL-UNNAMED
+--add-opens=java.base/java.lang.invoke=ALL-UNNAMED
+--add-opens=java.base/java.lang.reflect=ALL-UNNAMED
+--add-opens=java.base/java.math=ALL-UNNAMED
+--add-opens=java.base/java.time=ALL-UNNAMED
+--add-opens=java.base/java.text=ALL-UNNAMED
+--add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED
+--add-opens=java.management/sun.management=ALL-UNNAMED
+--add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED
+--add-opens=java.sql/java.sql=ALL-UNNAMED
+
+# Recommended by Ignite: avoids discovery problems on hosts with both IPv4 and IPv6 addresses.
+-Djava.net.preferIPv4Stack=true

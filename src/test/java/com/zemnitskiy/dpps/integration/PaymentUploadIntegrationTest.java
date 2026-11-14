@@ -1,152 +1,204 @@
 package com.zemnitskiy.dpps.integration;
 
-import com.zemnitskiy.dpps.config.IgniteConfig;
 import com.zemnitskiy.dpps.dto.UploadResult;
 import com.zemnitskiy.dpps.model.Payment;
-import org.apache.ignite.IgniteCache;
+import com.zemnitskiy.dpps.service.ClusterMemoryGuard;
+import com.zemnitskiy.dpps.support.TestData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
+import java.util.Map;
+
+import static com.zemnitskiy.dpps.support.TestData.HEADER;
+import static com.zemnitskiy.dpps.support.TestData.payment;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DisplayName("POST /api/payments/upload")
 @Tag("integration")
 class PaymentUploadIntegrationTest extends BaseIntegrationTest {
 
+    @Autowired
+    private ClusterMemoryGuard memoryGuard;
+
     @Test
-    @DisplayName("Valid CSV — all 15 records loaded")
-    void validCsv_shouldUploadAllRecords() throws Exception {
-        MvcResult result = performUpload(TEST_CSV);
+    @DisplayName("valid CSV: every row is stored")
+    void validCsv() throws Exception {
+        UploadResult result = upload(TEST_CSV);
 
-        UploadResult uploadResult = parseResponse(result, UploadResult.class);
-
-        assertThat(uploadResult.getSuccessfullyLoaded()).isEqualTo(15);
-        assertThat(uploadResult.getErrors()).isEmpty();
+        assertThat(result).isEqualTo(new UploadResult(15, 0, Map.of()));
+        assertThat(cache().size()).isEqualTo(15);
+        assertThat(cache().get("3")).isEqualTo(payment("3", "2026-02-20T20:00", "Bank A", "Bank C", "200"));
     }
 
     @Test
-    @DisplayName("CSV with missing fields — reports specific missing field errors")
-    void csvWithMissingFields_shouldReportErrors() throws Exception {
-        // Row 2: missing sender, Row 3: missing receiver, Row 4: missing datetime, Row 5: missing id
-        String csv = """
-                DateTime,Sender,Receiver,Amount,ID
+    @DisplayName("response JSON lists the counters and omits 'errors' when there are none")
+    void responseShape() throws Exception {
+        mockMvc.perform(multipart("/api/payments/upload").file(csvFile(TEST_CSV)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.successfullyLoaded").value(15))
+                .andExpect(jsonPath("$.rejected").value(0))
+                .andExpect(jsonPath("$.errors").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("invalid rows are skipped and counted per problem")
+    void invalidRows() throws Exception {
+        UploadResult result = upload(HEADER + """
                 2026-02-20T12:00,Bank A,Bank B,100,1
                 2026-02-20T13:00,,Bank C,50,2
                 2026-02-20T14:00,Bank A,,100,3
                 ,Bank A,Bank B,100,4
                 2026-02-20T15:00,Bank A,Bank B,100,
-                """;
+                2026-02-20 16:00,Bank A,Bank B,-5,6
+                20/02/2026,Bank A,Bank B,7,7
+                """);
 
-        MvcResult result = performUpload(csv);
-        UploadResult uploadResult = parseResponse(result, UploadResult.class);
-
-        assertThat(uploadResult.getSuccessfullyLoaded()).isEqualTo(1);
-        assertThat(uploadResult.getErrors())
-                .containsEntry("missing_sender", 1)
-                .containsEntry("missing_receiver", 1)
-                .containsEntry("missing_datetime", 1)
-                .containsEntry("missing_id", 1);
+        assertThat(result.successfullyLoaded()).isEqualTo(1);
+        assertThat(result.rejected()).isEqualTo(6);
+        assertThat(result.errors()).containsOnly(
+                Map.entry("missing_sender", 1), Map.entry("missing_receiver", 1), Map.entry("missing_datetime", 1),
+                Map.entry("missing_id", 1), Map.entry("invalid_value", 1), Map.entry("invalid_datetime", 1));
     }
 
     @Test
-    @DisplayName("CSV with negative and zero amounts — reports invalid_value errors")
-    void csvWithInvalidAmounts_shouldReportInvalidValue() throws Exception {
-        // Row 1: negative, Row 2: zero, Row 3: NaN, Row 4: valid
-        String csv = """
-                DateTime,Sender,Receiver,Amount,ID
-                2026-02-20T12:00,Bank A,Bank B,-50,1
-                2026-02-20T13:00,Bank A,Bank B,0,2
-                2026-02-20T14:00,Bank A,Bank B,abc,3
-                2026-02-20T15:00,Bank A,Bank B,100,4
-                """;
+    @DisplayName("a row with an unparseable date-time is rejected instead of breaking statistics later")
+    void unparseableDateTimeRejected() throws Exception {
+        UploadResult result = upload(HEADER + "2026-02-20 13:00,Bank A,Bank B,100,ok\n2026,Bank A,Bank B,100,bad\n");
 
-        MvcResult result = performUpload(csv);
-        UploadResult uploadResult = parseResponse(result, UploadResult.class);
-
-        assertThat(uploadResult.getSuccessfullyLoaded()).isEqualTo(1);
-        assertThat(uploadResult.getErrors()).containsEntry("invalid_value", 3);
+        assertThat(result.successfullyLoaded()).isEqualTo(1);
+        assertThat(result.errors()).containsOnly(Map.entry("invalid_datetime", 1));
+        assertThat(cache().containsKey("bad")).isFalse();
     }
 
     @Test
-    @DisplayName("Header-only CSV — returns zero loaded, no errors")
-    void headerOnlyCsv_shouldReturnZeroLoaded() throws Exception {
-        String csv = "DateTime,Sender,Receiver,Amount,ID\n";
+    @DisplayName("'Value' is accepted as the amount column")
+    void valueColumn() throws Exception {
+        UploadResult result = upload("DateTime,Sender,Receiver,Value,ID\n2026-02-20T12:00,Bank A,Bank B,100,1\n");
 
-        MvcResult result = performUpload(csv);
-        UploadResult uploadResult = parseResponse(result, UploadResult.class);
-
-        assertThat(uploadResult.getSuccessfullyLoaded()).isZero();
-        assertThat(uploadResult.getErrors()).isEmpty();
+        assertThat(result.successfullyLoaded()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("CSV with 'Value' column name works same as 'Amount'")
-    void csvWithValueColumnName_shouldWork() throws Exception {
-        String csv = """
-                DateTime,Sender,Receiver,Value,ID
-                2026-02-20T12:00,Bank A,Bank B,100,1
-                2026-02-20T13:00,Bank A,Bank B,200,2
-                """;
+    @DisplayName("a repeated ID replaces the earlier payment (last row wins), also across batches")
+    void repeatedIds() throws Exception {
+        StringBuilder csv = new StringBuilder(HEADER);
+        for (int i = 0; i < 1500; i++) {
+            csv.append("2026-02-20T12:00,A,B,").append(i + 1).append(",id-").append(i % 1000).append('\n');
+        }
 
-        MvcResult result = performUpload(csv);
-        UploadResult uploadResult = parseResponse(result, UploadResult.class);
+        UploadResult result = upload(csv.toString());
 
-        assertThat(uploadResult.getSuccessfullyLoaded()).isEqualTo(2);
-        assertThat(uploadResult.getErrors()).isEmpty();
+        assertThat(result.successfullyLoaded()).isEqualTo(1500);
+        assertThat(cache().size()).isEqualTo(1000);
+        assertThat(cache().get("id-0").getValue()).isEqualByComparingTo("1001");
     }
 
     @Test
-    @DisplayName("Duplicate IDs within same batch — last value wins")
-    void duplicateIds_shouldOverwriteInBatch() throws Exception {
-        String csv = """
-                DateTime,Sender,Receiver,Amount,ID
-                2026-02-20T12:00,Bank A,Bank B,100,SAME_ID
-                2026-02-20T13:00,Bank C,Bank D,999,SAME_ID
-                """;
+    @DisplayName("re-uploading the same file is idempotent")
+    void reUpload() throws Exception {
+        upload(TEST_CSV);
+        UploadResult again = upload(TEST_CSV);
 
-        performUpload(csv);
-
-        IgniteCache<String, Payment> cache = ignite.cache(IgniteConfig.PAYMENTS_CACHE);
-        assertThat(cache.size()).isEqualTo(1);
-
-        Payment stored = cache.get("SAME_ID");
-        assertThat(stored.getValue()).isEqualTo(999);
-        assertThat(stored.getSender()).isEqualTo("Bank C");
+        assertThat(again.successfullyLoaded()).isEqualTo(15);
+        assertThat(cache().size()).isEqualTo(15);
     }
 
     @Test
-    @DisplayName("Re-upload same file — updates existing records")
-    void reUploadSameFile_shouldUpdateExistingRecords() throws Exception {
-        performUpload(TEST_CSV);
+    @DisplayName("separate uploads accumulate")
+    void accumulate() throws Exception {
+        upload(TestData.generatedCsv(3, "a-"));
+        upload(TestData.generatedCsv(4, "b-"));
 
-        MvcResult result = performUpload(TEST_CSV);
-        UploadResult uploadResult = parseResponse(result, UploadResult.class);
-
-        assertThat(uploadResult.getSuccessfullyLoaded()).isEqualTo(15);
-
-        // Cache size should remain the same (records updated, not duplicated)
-        IgniteCache<String, Payment> cache = ignite.cache(IgniteConfig.PAYMENTS_CACHE);
-        assertThat(cache.size()).isEqualTo(15);
+        assertThat(cache().size()).isEqualTo(7);
     }
 
     @Test
-    @DisplayName("Multiple uploads accumulate data in cache")
-    void multipleUploads_shouldAccumulateData() throws Exception {
-        String csv1 = """
-                DateTime,Sender,Receiver,Amount,ID
-                2026-02-20T12:00,Bank A,Bank B,100,1
-                """;
-        String csv2 = """
-                DateTime,Sender,Receiver,Amount,ID
-                2026-02-20T13:00,Bank C,Bank D,200,2
-                """;
+    @DisplayName("header only: nothing stored, nothing rejected")
+    void headerOnly() throws Exception {
+        assertThat(upload(HEADER)).isEqualTo(new UploadResult(0, 0, Map.of()));
+    }
 
-        performUpload(csv1);
-        performUpload(csv2);
+    @Test
+    @DisplayName("400 for a file without the required columns")
+    void wrongHeader() throws Exception {
+        mockMvc.perform(multipart("/api/payments/upload").file(csvFile("Date,From,To,Sum\n2026-02-20,A,B,1\n")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("CSV Parsing Error"))
+                .andExpect(jsonPath("$.message").value(containsString("missing required column(s)")));
+        assertThat(cache().size()).isZero();
+    }
 
-        IgniteCache<String, Payment> cache = ignite.cache(IgniteConfig.PAYMENTS_CACHE);
-        assertThat(cache.size()).isEqualTo(2);
+    @Test
+    @DisplayName("400 for broken CSV syntax; rows before the broken line are kept and the response says so")
+    void malformedCsv() throws Exception {
+        String csv = HEADER + "2026-02-20T12:00,A,B,1,1\n2026-02-20T12:00,\"A,B,1,2\n2026-02-20T12:00,A,B,1,3\n";
+
+        mockMvc.perform(multipart("/api/payments/upload").file(csvFile(csv)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("Malformed CSV at line 3")))
+                .andExpect(jsonPath("$.message").value(containsString("The 1 payment before that point was stored")));
+        assertThat(cache().containsKey("1")).isTrue();
+        assertThat(cache().containsKey("3")).isFalse();
+    }
+
+    @Test
+    @DisplayName("400 for an empty file")
+    void emptyFile() throws Exception {
+        mockMvc.perform(multipart("/api/payments/upload").file(csvFile("")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("The uploaded file is empty"));
+    }
+
+    @Test
+    @DisplayName("400 when the multipart request has no 'file' part")
+    void missingFilePart() throws Exception {
+        mockMvc.perform(multipart("/api/payments/upload"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("file")));
+    }
+
+    @Test
+    @DisplayName("415 when the request isn't multipart")
+    void notMultipart() throws Exception {
+        mockMvc.perform(post("/api/payments/upload").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.status").value(415));
+    }
+
+    @Test
+    @DisplayName("507 and nothing stored when the cluster memory is nearly full")
+    void memoryNearlyFull() throws Exception {
+        double watermark = (double) ReflectionTestUtils.getField(memoryGuard, "highWatermark");
+        ReflectionTestUtils.setField(memoryGuard, "highWatermark", 0.0);
+        ReflectionTestUtils.setField(memoryGuard, "lastReading", null);
+        try {
+            mockMvc.perform(multipart("/api/payments/upload").file(csvFile(TEST_CSV)))
+                    .andExpect(status().isInsufficientStorage())
+                    .andExpect(jsonPath("$.message").value(containsString("The cluster is running out of memory")));
+            assertThat(cache().size()).isZero();
+        } finally {
+            ReflectionTestUtils.setField(memoryGuard, "highWatermark", watermark);
+            ReflectionTestUtils.setField(memoryGuard, "lastReading", null);
+        }
+    }
+
+    @Test
+    @DisplayName("stored payments keep exact amounts and real date-times")
+    void exactValues() throws Exception {
+        upload(HEADER + "2026-02-20 12:00:30.5,Bank A,Bank B,0.10,x\n");
+
+        Payment stored = cache().get("x");
+        assertThat(stored.getValue()).isEqualTo(new BigDecimal("0.10"));
+        assertThat(stored.getDateTime()).isEqualTo(TestData.at("2026-02-20T12:00:30.500"));
     }
 }

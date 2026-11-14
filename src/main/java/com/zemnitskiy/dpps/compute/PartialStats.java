@@ -1,73 +1,81 @@
 package com.zemnitskiy.dpps.compute;
 
-import lombok.Data;
+import lombok.Getter;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 /**
- * Accumulator for statistics computed on a single Ignite node.
- * Supports {@link #accumulate} for adding individual payments and
- * {@link #merge} for combining results from different nodes.
+ * Mergeable accumulator for one statistics group (a date, a bank or a connection).
+ * <p>
+ * Filled on the data nodes, sent back to the reducer and merged there - hence a plain serializable class.
+ * All amounts are exact {@link BigDecimal}s; nothing is rounded until the final average.
  */
-@Data
+@Getter
 public class PartialStats implements Serializable {
 
     @Serial
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
+
+    /** Decimal places of the average amount. */
+    public static final int AVERAGE_SCALE = 4;
 
     private long count;
-    private double minValue = Double.MAX_VALUE;
-    private double maxValue = -Double.MAX_VALUE;
-    private double sumValue;
-    private String minDateTime;
-    private String maxDateTime;
-    private long dateTimeSumEpochSeconds;
+    private BigDecimal sum = BigDecimal.ZERO;
+    private BigDecimal min;
+    private BigDecimal max;
+    private LocalDateTime earliest;
+    private LocalDateTime latest;
+    /** Sum of the timestamps as epoch seconds (UTC is used only as an arithmetic reference, not as a zone). */
+    private long epochSecondsSum;
 
-    /** Adds a single payment's data to this accumulator. */
-    public void accumulate(double value, String dateTime, long epochSeconds) {
+    /** Adds one payment (or, for BY_BANK, one side of a payment) to the group. */
+    public void add(BigDecimal value, LocalDateTime dateTime) {
         count++;
-        sumValue += value;
-        if (value < minValue) minValue = value;
-        if (value > maxValue) maxValue = value;
-
-        if (minDateTime == null || dateTime.compareTo(minDateTime) < 0) {
-            minDateTime = dateTime;
-        }
-        if (maxDateTime == null || dateTime.compareTo(maxDateTime) > 0) {
-            maxDateTime = dateTime;
-        }
-        dateTimeSumEpochSeconds += epochSeconds;
+        sum = sum.add(value);
+        min = min == null || value.compareTo(min) < 0 ? value : min;
+        max = max == null || value.compareTo(max) > 0 ? value : max;
+        earliest = earliest == null || dateTime.isBefore(earliest) ? dateTime : earliest;
+        latest = latest == null || dateTime.isAfter(latest) ? dateTime : latest;
+        epochSecondsSum = Math.addExact(epochSecondsSum, dateTime.toEpochSecond(ZoneOffset.UTC));
     }
 
-    /** Merges another node's partial result into this one. Used during the reduce phase. */
+    /** Merges another partial result of the same group into this one and returns {@code this}. */
     public PartialStats merge(PartialStats other) {
-        if (other == null || other.count == 0) return this;
-        if (this.count == 0) return other;
-
-        this.count += other.count;
-        this.sumValue += other.sumValue;
-        if (other.minValue < this.minValue) this.minValue = other.minValue;
-        if (other.maxValue > this.maxValue) this.maxValue = other.maxValue;
-
-        if (other.minDateTime != null &&
-                (this.minDateTime == null || other.minDateTime.compareTo(this.minDateTime) < 0)) {
-            this.minDateTime = other.minDateTime;
+        if (other == null || other.count == 0) {
+            return this;
         }
-        if (other.maxDateTime != null &&
-                (this.maxDateTime == null || other.maxDateTime.compareTo(this.maxDateTime) > 0)) {
-            this.maxDateTime = other.maxDateTime;
+        if (count == 0) {
+            return other;
         }
-        this.dateTimeSumEpochSeconds += other.dateTimeSumEpochSeconds;
-
+        count += other.count;
+        sum = sum.add(other.sum);
+        min = other.min.compareTo(min) < 0 ? other.min : min;
+        max = other.max.compareTo(max) > 0 ? other.max : max;
+        earliest = other.earliest.isBefore(earliest) ? other.earliest : earliest;
+        latest = other.latest.isAfter(latest) ? other.latest : latest;
+        epochSecondsSum = Math.addExact(epochSecondsSum, other.epochSecondsSum);
         return this;
     }
 
-    public double getAverageValue() {
-        return count > 0 ? sumValue / count : 0;
+    /** Mean amount rounded half-up to {@value #AVERAGE_SCALE} decimals, without trailing zeros; null if empty. */
+    public BigDecimal average() {
+        if (count == 0) {
+            return null;
+        }
+        BigDecimal average = sum.divide(BigDecimal.valueOf(count), AVERAGE_SCALE, RoundingMode.HALF_UP).stripTrailingZeros();
+        return average.scale() < 0 ? average.setScale(0) : average;
     }
 
-    public long getAverageEpochSeconds() {
-        return count > 0 ? dateTimeSumEpochSeconds / count : 0;
+    /** Mean timestamp, to the second; null if empty. */
+    public LocalDateTime averageDateTime() {
+        if (count == 0) {
+            return null;
+        }
+        return LocalDateTime.ofEpochSecond(Math.floorDiv(epochSecondsSum, count), 0, ZoneOffset.UTC);
     }
 }

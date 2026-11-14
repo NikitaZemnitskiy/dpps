@@ -8,28 +8,21 @@
         <version>3.5.11</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
+
     <groupId>com.zemnitskiy</groupId>
     <artifactId>dpps</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>dpps</name>
-    <description>dpps</description>
-    <url/>
-    <licenses>
-        <license/>
-    </licenses>
-    <developers>
-        <developer/>
-    </developers>
-    <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
-    </scm>
+    <description>Distributed Payment Processing System: Spring Boot on an Apache Ignite 2 cluster with MapReduce statistics</description>
+
     <properties>
         <java.version>17</java.version>
         <ignite.version>2.17.0</ignite.version>
+        <opencsv.version>5.12.0</opencsv.version>
+        <!-- JVM flags Ignite needs on Java 17; the same file is used by the Docker image -->
+        <dpps.jvm.args>@${project.basedir}/jvm.options</dpps.jvm.args>
     </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -58,25 +51,24 @@
             <version>${ignite.version}</version>
         </dependency>
         <dependency>
+            <!-- Ignite logs through SLF4J/Logback like the rest of the application -->
             <groupId>org.apache.ignite</groupId>
-            <artifactId>ignite-spring</artifactId>
+            <artifactId>ignite-slf4j</artifactId>
             <version>${ignite.version}</version>
         </dependency>
 
         <dependency>
             <groupId>com.opencsv</groupId>
             <artifactId>opencsv</artifactId>
-            <version>5.12.0</version>
+            <version>${opencsv.version}</version>
         </dependency>
 
-        <!-- Add Lombok for annotations like @Data, @Getter -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
 
-        <!-- Add Spring Boot test starter for unit/integration tests -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -87,26 +79,47 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
             <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- Explicit processor path: newer JDKs no longer pick up annotation processors implicitly -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>
-                        --add-opens=java.base/java.lang=ALL-UNNAMED
-                        --add-opens=java.base/java.lang.invoke=ALL-UNNAMED
-                        --add-opens=java.base/java.math=ALL-UNNAMED
-                        --add-opens=java.base/java.util=ALL-UNNAMED
-                        --add-opens=java.base/java.nio=ALL-UNNAMED
-                        --add-opens=java.base/java.io=ALL-UNNAMED
-                    </argLine>
+                    <argLine>${dpps.jvm.args}</argLine>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <jvmArguments>${dpps.jvm.args}</jvmArguments>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
                 </configuration>
             </plugin>
         </plugins>
