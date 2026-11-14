@@ -1,382 +1,281 @@
 package com.zemnitskiy.dpps.unit;
 
+import com.zemnitskiy.dpps.compute.PaymentIdTransformer;
+import com.zemnitskiy.dpps.config.AppProperties;
 import com.zemnitskiy.dpps.config.IgniteConfig;
-import com.zemnitskiy.dpps.dto.DeleteResult;
 import com.zemnitskiy.dpps.dto.UploadResult;
-import com.zemnitskiy.dpps.exception.PaymentProcessingException;
+import com.zemnitskiy.dpps.exception.ClusterUnavailableException;
+import com.zemnitskiy.dpps.exception.CsvParsingException;
+import com.zemnitskiy.dpps.exception.InsufficientStorageException;
+import com.zemnitskiy.dpps.exception.PaymentDataLostException;
 import com.zemnitskiy.dpps.model.Payment;
+import com.zemnitskiy.dpps.model.TimeRange;
+import com.zemnitskiy.dpps.service.ClusterMemoryGuard;
 import com.zemnitskiy.dpps.service.CsvParsingService;
+import com.zemnitskiy.dpps.service.PartitionLossGuard;
 import com.zemnitskiy.dpps.service.PaymentService;
+import com.zemnitskiy.dpps.support.ListQueryCursor;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
-import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.query.ScanQuery;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.multipart.MultipartFile;
+import org.mockito.InOrder;
+import org.springframework.mock.web.MockMultipartFile;
 
 import javax.cache.Cache;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.time.format.DateTimeParseException;
+import javax.cache.CacheException;
+import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.Set;
+import java.util.stream.IntStream;
 
+import static com.zemnitskiy.dpps.support.TestData.HEADER;
+import static com.zemnitskiy.dpps.support.TestData.at;
+import static com.zemnitskiy.dpps.support.TestData.payment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Unit tests for PaymentService — core service for payment storage operations.
- * Tests upload, delete, stream, and validation logic.
- */
-@ExtendWith(MockitoExtension.class)
-@DisplayName("PaymentService — Unit Tests")
+/** PaymentService with the real CSV parser and a mocked cache. */
+@DisplayName("PaymentService")
+@Tag("unit")
 class PaymentServiceTest {
 
-    @Mock
-    private Ignite ignite;
+    private static final int BATCH_SIZE = 2;
 
-    @Mock
-    private IgniteCache<String, Payment> cache;
+    private final IgniteCache<String, Payment> cache = mockCache();
+    private final ClusterMemoryGuard memoryGuard = mock(ClusterMemoryGuard.class);
+    private final PartitionLossGuard partitionLossGuard = mock(PartitionLossGuard.class);
+    private final List<Map<String, Payment>> writtenBatches = new ArrayList<>();
+    private PaymentService service;
 
-    @Mock
-    private CsvParsingService csvParsingService;
+    @SuppressWarnings("unchecked")
+    private static IgniteCache<String, Payment> mockCache() {
+        return mock(IgniteCache.class);
+    }
 
-    @Mock
-    private MultipartFile multipartFile;
-
-    @Mock
-    private QueryCursor<Cache.Entry<String, Payment>> queryCursor;
-
-    @InjectMocks
-    private PaymentService paymentService;
-
-    @Captor
-    private ArgumentCaptor<Map<String, Payment>> batchCaptor;
-
-    private void setupCacheMock() {
+    @BeforeEach
+    void setUp() {
+        Ignite ignite = mock(Ignite.class);
         doReturn(cache).when(ignite).cache(IgniteConfig.PAYMENTS_CACHE);
+        doAnswer(invocation -> writtenBatches.add(new HashMap<>(invocation.<Map<String, Payment>>getArgument(0))))
+                .when(cache).putAll(anyMap());
+        memoryHas(0.10);
+        AppProperties properties = new AppProperties(
+                new AppProperties.Upload(BATCH_SIZE, 0.85, Duration.ofSeconds(1)),
+                new AppProperties.Statistics(Duration.ofSeconds(60), 3, Duration.ZERO));
+        service = new PaymentService(ignite, new CsvParsingService(), memoryGuard, partitionLossGuard, properties);
+    }
+
+    private void memoryHas(double usage) {
+        when(memoryGuard.status()).thenReturn(new ClusterMemoryGuard.Status(usage, 0.85));
+    }
+
+    private static MockMultipartFile csv(String content) {
+        return new MockMultipartFile("file", "payments.csv", "text/csv", content.getBytes());
     }
 
     @Nested
-    @DisplayName("Upload Payments Tests")
-    class UploadPaymentsTests {
+    @DisplayName("Upload")
+    class Upload {
 
         @Test
-        @DisplayName("Upload valid CSV — stores payments and returns correct counts")
-        void uploadValidCsv_shouldStorePaymentsAndReturnCounts() throws IOException {
-            setupCacheMock();
-            when(multipartFile.getSize()).thenReturn(1000L);
-            when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        @DisplayName("stores valid rows in batches and reports rejected ones")
+        void storesInBatches() {
+            UploadResult result = service.uploadPayments(csv(HEADER + """
+                    2026-02-20T10:00,A,B,100,1
+                    2026-02-20T11:00,A,C,200,2
+                    2026-02-20T12:00,,C,200,3
+                    2026-02-20T13:00,B,C,300,4
+                    """));
 
-            List<Payment> payments = List.of(
-                    new Payment("1", "2026-02-20T10:00:00", "BankA", "BankB", 100.0),
-                    new Payment("2", "2026-02-20T11:00:00", "BankA", "BankC", 200.0)
-            );
-
-            doAnswer(invocation -> {
-                invocation.getArgument(1);
-                Consumer<Payment> consumer = invocation.getArgument(2);
-                payments.forEach(consumer);
-                return null;
-            }).when(csvParsingService).parse(any(InputStream.class), any(UploadResult.class), any());
-
-            UploadResult result = paymentService.uploadPayments(multipartFile);
-
-            verify(cache).putAll(batchCaptor.capture());
-            Map<String, Payment> savedBatch = batchCaptor.getValue();
-
-            assertThat(savedBatch).hasSize(2);
-            assertThat(savedBatch).containsKeys("1", "2");
-            assertThat(result.getSuccessfullyLoaded()).isEqualTo(2);
+            assertThat(writtenBatches).hasSize(2);
+            assertThat(writtenBatches.get(0)).containsOnlyKeys("1", "2");
+            assertThat(writtenBatches.get(1)).containsOnlyKeys("4");
+            assertThat(writtenBatches.get(0).get("1")).isEqualTo(payment("1", "2026-02-20T10:00", "A", "B", "100"));
+            assertThat(result).isEqualTo(new UploadResult(3, 1, Map.of("missing_sender", 1)));
         }
 
         @Test
-        @DisplayName("Upload triggers batch save when batch size reached")
-        void uploadLargeFile_shouldTriggerMultipleBatches() throws IOException {
-            setupCacheMock();
-            when(multipartFile.getSize()).thenReturn(100000L);
-            when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        @DisplayName("counts every stored row, and the last row with a repeated ID wins")
+        void repeatedIds() {
+            UploadResult result = service.uploadPayments(csv(HEADER + """
+                    2026-02-20T10:00,A,B,1,same
+                    2026-02-20T11:00,A,B,2,same
+                    2026-02-20T12:00,A,B,3,same
+                    """));
 
-            // Generate 2500 payments (should trigger 3 batches: 1000, 1000, 500)
-            List<Payment> payments = new ArrayList<>();
-            for (int i = 0; i < 2500; i++) {
-                payments.add(new Payment(String.valueOf(i), "2026-02-20T10:00:00", "BankA", "BankB", 100.0));
-            }
-
-            doAnswer(invocation -> {
-                invocation.getArgument(1);
-                Consumer<Payment> consumer = invocation.getArgument(2);
-                payments.forEach(consumer);
-                return null;
-            }).when(csvParsingService).parse(any(InputStream.class), any(UploadResult.class), any());
-
-            UploadResult result = paymentService.uploadPayments(multipartFile);
-
-            verify(cache, times(3)).putAll(anyMap());
-            assertThat(result.getSuccessfullyLoaded()).isEqualTo(2500);
+            assertThat(result.successfullyLoaded()).isEqualTo(3);
+            assertThat(writtenBatches.get(0)).containsOnlyKeys("same");
+            assertThat(writtenBatches.get(0).get("same").getValue()).isEqualByComparingTo("2");
+            assertThat(writtenBatches.get(1).get("same").getValue()).isEqualByComparingTo("3");
         }
 
         @Test
-        @DisplayName("Upload empty file — returns zero counts")
-        void uploadEmptyFile_shouldReturnZeroCounts() throws IOException {
-            when(multipartFile.getSize()).thenReturn(0L);
-            when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        @DisplayName("broken CSV: valid rows before the problem are stored and the error says how many")
+        void brokenCsvStoresPrecedingRows() {
+            String content = HEADER + """
+                    2026-02-20T10:00,A,B,1,1
+                    2026-02-20T11:00,A,B,1,2
+                    2026-02-20T12:00,A,B,1,3
+                    2026-02-20T13:00,"A,B,1,4
+                    2026-02-20T14:00,A,B,1,5
+                    """;
 
-            doAnswer(invocation -> null)
-                    .when(csvParsingService).parse(any(InputStream.class), any(UploadResult.class), any());
-
-            UploadResult result = paymentService.uploadPayments(multipartFile);
-
-            assertThat(result.getSuccessfullyLoaded()).isZero();
+            assertThatThrownBy(() -> service.uploadPayments(csv(content)))
+                    .isInstanceOf(CsvParsingException.class)
+                    .hasMessageContaining("Malformed CSV at line 5")
+                    .hasMessageContaining("The 3 payments before that point were stored")
+                    .hasMessageContaining("Re-uploading the file is safe");
+            List<String> stored = writtenBatches.stream().flatMap(batch -> batch.keySet().stream()).toList();
+            assertThat(stored).containsExactlyInAnyOrder("1", "2", "3");
         }
 
         @Test
-        @DisplayName("Upload with IO error — throws PaymentProcessingException")
-        void uploadWithIoError_shouldThrowException() throws IOException {
-            when(multipartFile.getSize()).thenReturn(1000L);
-            when(multipartFile.getInputStream()).thenThrow(new IOException("Read error"));
-
-            assertThatThrownBy(() -> paymentService.uploadPayments(multipartFile))
-                    .isInstanceOf(PaymentProcessingException.class)
-                    .hasMessageContaining("Failed to upload payments");
+        @DisplayName("a file without the required columns stores nothing")
+        void wrongHeader() {
+            assertThatThrownBy(() -> service.uploadPayments(csv("a,b,c\n1,2,3\n")))
+                    .isInstanceOf(CsvParsingException.class)
+                    .hasMessageContaining("missing required column(s)")
+                    .hasMessageContaining("No payments were stored");
+            verify(cache, never()).putAll(anyMap());
         }
 
         @Test
-        @DisplayName("Upload with parsing errors — returns error counts")
-        void uploadWithParsingErrors_shouldReturnErrorCounts() throws IOException {
-            setupCacheMock();
-            when(multipartFile.getSize()).thenReturn(1000L);
-            when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        @DisplayName("a cluster failure is reported with the number of rows already stored")
+        void clusterFailure() {
+            doAnswer(invocation -> writtenBatches.add(invocation.getArgument(0)))
+                    .doThrow(new CacheException("node left"))
+                    .when(cache).putAll(anyMap());
 
-            doAnswer(invocation -> {
-                UploadResult result = invocation.getArgument(1);
-                Consumer<Payment> consumer = invocation.getArgument(2);
-
-                // Simulate 1 valid payment
-                consumer.accept(new Payment("1", "2026-02-20T10:00:00", "BankA", "BankB", 100.0));
-
-                // Simulate parsing errors
-                result.incrementMissing("sender");
-                result.incrementMissing("sender");
-                result.incrementInvalid("value");
-
-                return null;
-            }).when(csvParsingService).parse(any(InputStream.class), any(UploadResult.class), any());
-
-            UploadResult result = paymentService.uploadPayments(multipartFile);
-
-            assertThat(result.getSuccessfullyLoaded()).isEqualTo(1);
-            assertThat(result.getErrors())
-                    .containsEntry("missing_sender", 2)
-                    .containsEntry("invalid_value", 1);
-        }
-    }
-
-    @Nested
-    @DisplayName("Delete Payments Tests")
-    class DeletePaymentsTests {
-
-        @Test
-        @DisplayName("Delete all — clears cache and returns count")
-        void deleteAll_shouldClearCacheAndReturnCount() {
-            setupCacheMock();
-            when(cache.size()).thenReturn(500);
-
-            DeleteResult result = paymentService.deletePayments(null, null);
-
-            verify(cache).clear();
-            assertThat(result.deletedCount()).isEqualTo(500);
+            assertThatThrownBy(() -> service.uploadPayments(csv(TestCsv.rows(5))))
+                    .isInstanceOf(ClusterUnavailableException.class)
+                    .hasMessageContaining("after 2 payments had been saved");
         }
 
         @Test
-        @DisplayName("Delete by time range — removes matching payments")
-        @SuppressWarnings("unchecked")
-        void deleteByTimeRange_shouldRemoveMatchingPayments() {
-            setupCacheMock();
-            List<Payment> matchingPayments = List.of(
-                    new Payment("1", "2026-02-20T10:00:00", "BankA", "BankB", 100.0),
-                    new Payment("2", "2026-02-20T11:00:00", "BankA", "BankC", 200.0)
-            );
+        @DisplayName("refuses to write while lost payments haven't been acknowledged")
+        void dataLost() {
+            doThrow(new PaymentDataLostException(3, 1024)).when(partitionLossGuard).ensureNoDataLoss();
 
-            List<Cache.Entry<String, Payment>> entries = matchingPayments.stream()
-                    .map(p -> createCacheEntry(p.getId(), p))
-                    .toList();
-
-            doReturn(queryCursor).when(cache).query(any(ScanQuery.class));
-            when(queryCursor.iterator()).thenReturn(entries.iterator());
-
-            DeleteResult result = paymentService.deletePayments("2026-02-20T00:00:00", "2026-02-20T23:59:59");
-
-            verify(cache).removeAll(anySet());
-            assertThat(result.deletedCount()).isEqualTo(2);
+            assertThatThrownBy(() -> service.uploadPayments(csv(TestCsv.rows(3))))
+                    .isInstanceOf(PaymentDataLostException.class)
+                    .hasMessageContaining("delete all payments");
+            verify(cache, never()).putAll(anyMap());
         }
 
         @Test
-        @DisplayName("Delete by time range with no matches — returns zero")
-        @SuppressWarnings("unchecked")
-        void deleteByTimeRangeNoMatches_shouldReturnZero() {
-            setupCacheMock();
-            doReturn(queryCursor).when(cache).query(any(ScanQuery.class));
-            when(queryCursor.iterator()).thenReturn(Collections.emptyIterator());
+        @DisplayName("refuses to start when the cluster memory is nearly full")
+        void memoryFullUpFront() {
+            memoryHas(0.90);
 
-            DeleteResult result = paymentService.deletePayments("2026-02-20T00:00:00", "2026-02-20T23:59:59");
-
-            verify(cache, never()).removeAll(anySet());
-            assertThat(result.deletedCount()).isZero();
+            assertThatThrownBy(() -> service.uploadPayments(csv(TestCsv.rows(3))))
+                    .isInstanceOf(InsufficientStorageException.class)
+                    .hasMessageContaining("fullest node uses 90% of its data region")
+                    .hasMessageContaining("0 payments stored");
+            verify(cache, never()).putAll(anyMap());
         }
 
         @Test
-        @DisplayName("Delete by time range — processes in batches")
-        @SuppressWarnings("unchecked")
-        void deleteByTimeRange_shouldProcessInBatches() {
-            setupCacheMock();
-            // Generate 2500 payments (should trigger 3 batches)
-            List<Cache.Entry<String, Payment>> entries = new ArrayList<>();
-            for (int i = 0; i < 2500; i++) {
-                Payment p = new Payment(String.valueOf(i), "2026-02-20T10:00:00", "BankA", "BankB", 100.0);
-                entries.add(createCacheEntry(p.getId(), p));
-            }
+        @DisplayName("stops when the cluster memory fills up during the upload")
+        void memoryFullMidway() {
+            when(memoryGuard.status()).thenReturn(
+                    new ClusterMemoryGuard.Status(0.5, 0.85),
+                    new ClusterMemoryGuard.Status(0.6, 0.85),
+                    new ClusterMemoryGuard.Status(0.86, 0.85));
 
-            doReturn(queryCursor).when(cache).query(any(ScanQuery.class));
-            when(queryCursor.iterator()).thenReturn(entries.iterator());
-
-            DeleteResult result = paymentService.deletePayments("2026-02-20T00:00:00", "2026-02-20T23:59:59");
-
-            verify(cache, times(3)).removeAll(anySet());
-            assertThat(result.deletedCount()).isEqualTo(2500);
+            assertThatThrownBy(() -> service.uploadPayments(csv(TestCsv.rows(10))))
+                    .isInstanceOf(InsufficientStorageException.class)
+                    .hasMessageContaining("2 payments stored");
+            verify(cache, times(1)).putAll(anyMap());
         }
     }
 
     @Nested
-    @DisplayName("Stream Payments Tests")
-    class StreamPaymentsTests {
+    @DisplayName("Delete")
+    class Delete {
 
         @Test
-        @DisplayName("Stream payments — invokes consumer for each match")
-        @SuppressWarnings("unchecked")
-        void streamPayments_shouldInvokeConsumerForEachMatch() {
-            setupCacheMock();
-            List<Payment> payments = List.of(
-                    new Payment("1", "2026-02-20T10:00:00", "BankA", "BankB", 100.0),
-                    new Payment("2", "2026-02-20T11:00:00", "BankA", "BankC", 200.0),
-                    new Payment("3", "2026-02-20T12:00:00", "BankB", "BankA", 150.0)
-            );
+        @DisplayName("an unbounded range clears the cache and acknowledges any data loss first")
+        void deleteAll() {
+            when(cache.sizeLong()).thenReturn(500L);
 
-            List<Cache.Entry<String, Payment>> entries = payments.stream()
-                    .map(p -> createCacheEntry(p.getId(), p))
-                    .toList();
-
-            doReturn(queryCursor).when(cache).query(any(ScanQuery.class));
-            when(queryCursor.iterator()).thenReturn(entries.iterator());
-
-            List<Payment> streamed = new ArrayList<>();
-            paymentService.streamPayments("2026-02-20T00:00:00", "2026-02-20T23:59:59", streamed::add);
-
-            assertThat(streamed).hasSize(3);
-            assertThat(streamed).extracting(Payment::getId).containsExactly("1", "2", "3");
+            assertThat(service.deletePayments(TimeRange.unbounded())).isEqualTo(500);
+            InOrder order = inOrder(partitionLossGuard, cache);
+            order.verify(partitionLossGuard).acknowledgeDataLoss();
+            order.verify(cache).clear();
         }
 
         @Test
-        @DisplayName("Stream with no matches — consumer not invoked")
+        @DisplayName("a range scans only keys and removes them in batches")
         @SuppressWarnings("unchecked")
-        void streamWithNoMatches_shouldNotInvokeConsumer() {
-            setupCacheMock();
-            doReturn(queryCursor).when(cache).query(any(ScanQuery.class));
-            when(queryCursor.iterator()).thenReturn(Collections.emptyIterator());
+        void deleteRange() {
+            List<String> ids = IntStream.range(0, 5).mapToObj(String::valueOf).toList();
+            when(cache.query(any(ScanQuery.class), any(PaymentIdTransformer.class))).thenReturn(new ListQueryCursor<>(ids));
 
-            List<Payment> streamed = new ArrayList<>();
-            paymentService.streamPayments("2026-02-20T00:00:00", "2026-02-20T23:59:59", streamed::add);
+            long deleted = service.deletePayments(TimeRange.of(at("2026-02-20T00:00"), at("2026-02-20T23:59:59")));
 
-            assertThat(streamed).isEmpty();
+            assertThat(deleted).isEqualTo(5);
+            ArgumentCaptor<Set<String>> removed = ArgumentCaptor.forClass(Set.class);
+            verify(cache, times(3)).removeAll(removed.capture());
+            verify(cache, never()).clear();
         }
     }
 
-    @Nested
-    @DisplayName("Validate Time Range Tests")
-    class ValidateTimeRangeTests {
+    @Test
+    @DisplayName("Stream passes every matching payment to the consumer and closes the cursor")
+    @SuppressWarnings("unchecked")
+    void stream() {
+        Payment p1 = payment("1", "2026-02-20T10:00", "A", "B", "1");
+        Payment p2 = payment("2", "2026-02-20T11:00", "A", "B", "2");
+        ListQueryCursor<Cache.Entry<String, Payment>> cursor = ListQueryCursor.ofEntries(
+                List.of(ListQueryCursor.entry("1", p1), ListQueryCursor.entry("2", p2)));
+        doReturn(cursor).when(cache).query(any(ScanQuery.class));
 
-        @Test
-        @DisplayName("Valid range within 1 week — no exception")
-        void validRangeWithinOneWeek_shouldNotThrow() {
-            paymentService.validateTimeRange("2026-02-20T00:00:00", "2026-02-25T00:00:00");
-            // No exception means success
-        }
+        List<Payment> streamed = new ArrayList<>();
+        service.streamPayments(TimeRange.of(at("2026-02-20T00:00"), at("2026-02-20T23:59")), streamed::add);
 
-        @Test
-        @DisplayName("Range exactly 1 week — no exception")
-        void rangeExactlyOneWeek_shouldNotThrow() {
-            paymentService.validateTimeRange("2026-02-20T00:00:00", "2026-02-27T00:00:00");
-            // No exception means success
-        }
-
-        @Test
-        @DisplayName("Range exceeds 1 week — throws IllegalArgumentException")
-        void rangeExceedsOneWeek_shouldThrowException() {
-            assertThatThrownBy(() -> paymentService.validateTimeRange("2026-02-20T00:00:00", "2026-02-28T00:00:01"))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("must not exceed 1 week");
-        }
-
-        @Test
-        @DisplayName("From after to — throws IllegalArgumentException")
-        void fromAfterTo_shouldThrowException() {
-            assertThatThrownBy(() -> paymentService.validateTimeRange("2026-02-25T00:00:00", "2026-02-20T00:00:00"))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("'from' must be before 'to'");
-        }
-
-        @Test
-        @DisplayName("Invalid date format — throws DateTimeParseException")
-        void invalidDateFormat_shouldThrowException() {
-            assertThatThrownBy(() -> paymentService.validateTimeRange("invalid-date", "2026-02-20T00:00:00"))
-                    .isInstanceOf(DateTimeParseException.class);
-        }
-
-        @Test
-        @DisplayName("Same from and to — valid (zero duration)")
-        void sameFromAndTo_shouldNotThrow() {
-            paymentService.validateTimeRange("2026-02-20T12:00:00", "2026-02-20T12:00:00");
-            // No exception means success
-        }
+        assertThat(streamed).containsExactly(p1, p2);
+        assertThat(cursor.isClosed()).isTrue();
     }
 
-    private Cache.Entry<String, Payment> createCacheEntry(String key, Payment value) {
-        return new Cache.Entry<>() {
-            @Override
-            public String getKey() {
-                return key;
-            }
+    @Test
+    @DisplayName("Stream reports a cluster failure as ClusterUnavailableException")
+    @SuppressWarnings("unchecked")
+    void streamClusterFailure() {
+        when(cache.query(any(ScanQuery.class))).thenThrow(new CacheException("Failed to fetch the next page"));
 
-            @Override
-            public Payment getValue() {
-                return value;
-            }
+        assertThatThrownBy(() -> service.streamPayments(TimeRange.unbounded(), payment -> { }))
+                .isInstanceOf(ClusterUnavailableException.class)
+                .hasMessageContaining("Reading payments failed");
+    }
 
-            @Override
-            public <T> T unwrap(Class<T> clazz) {
-                return null;
+    /** Small CSV generator for this test. */
+    private static final class TestCsv {
+        static String rows(int count) {
+            StringBuilder csv = new StringBuilder(HEADER);
+            for (int i = 0; i < count; i++) {
+                csv.append("2026-02-20T10:00,A,B,1,id").append(i).append('\n');
             }
-        };
+            return csv.toString();
+        }
     }
 }

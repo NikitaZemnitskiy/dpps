@@ -2,6 +2,18 @@
   "id": "payment-system",
   "realm": "payment-system",
   "enabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "payments-read",
+        "description": "Read payments and statistics"
+      },
+      {
+        "name": "payments-write",
+        "description": "Upload and delete payments"
+      }
+    ]
+  },
   "users": [
     {
       "username": "user",
@@ -19,22 +31,55 @@
         }
       ],
       "realmRoles": [
-        "default-roles-payment-system"
+        "default-roles-payment-system",
+        "payments-read",
+        "payments-write"
+      ]
+    },
+    {
+      "username": "viewer",
+      "email": "viewer@example.com",
+      "firstName": "Read-only",
+      "lastName": "Viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "requiredActions": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "viewer",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-payment-system",
+        "payments-read"
       ]
     }
   ],
   "clients": [
     {
       "clientId": "payment-client",
+      "name": "DPPS API client",
+      "description": "Public client for obtaining access tokens to the DPPS API (password grant, local demo setup)",
       "enabled": true,
       "publicClient": true,
       "directAccessGrantsEnabled": true,
-      "standardFlowEnabled": true,
-      "redirectUris": [
-        "*"
-      ],
-      "webOrigins": [
-        "*"
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "payment-service-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "payment-service",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
       ]
     }
   ]

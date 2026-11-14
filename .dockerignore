@@ -1,12 +1,15 @@
 .git
+.github
 .idea
+.vscode
 .mvn
 ignite
 target
 postman
 *.iml
 *.md
+*.log
+*.csv
 docker-compose.yml
 nginx.conf
 realm-export.json
-*.csv

@@ -1,24 +1,27 @@
 package com.zemnitskiy.dpps.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.Value;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
-/** Domain model representing a single payment transaction. Stored in the Ignite cache keyed by {@code id}. */
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
+/**
+ * A single payment, stored in the Ignite cache under its {@code id}.
+ * <p>
+ * Immutable. Amounts are exact decimals ({@link BigDecimal}) and timestamps are real date-times, so range
+ * filters and statistics never depend on how the source file spelled them.
+ */
+@Value
 public class Payment implements Serializable {
 
     @Serial
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
 
-    private String id;
-    private String dateTime;
-    private String sender;
-    private String receiver;
-    private double value;
+    String id;
+    LocalDateTime dateTime;
+    String sender;
+    String receiver;
+    BigDecimal value;
 }
