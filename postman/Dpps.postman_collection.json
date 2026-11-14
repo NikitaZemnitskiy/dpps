@@ -1,378 +1,672 @@
 {
-  "info": {
-    "_postman_id": "b99dc6ad-de65-469a-85fb-0f133926dd7a",
-    "name": "Dpps",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "10406331",
-    "_collection_link": "https://go.postman.co/collection/10406331-b99dc6ad-de65-469a-85fb-0f133926dd7a?source=collection_link"
-  },
-  "item": [
-    {
-      "name": "Payments",
-      "item": [
-        {
-          "name": "UploadPayments",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{Token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "",
-                "value": "",
-                "disabled": true
-              }
-            ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "type": "file",
-                  "key": "file",
-                  "src": "postman-cloud:///1f113bce-7571-47a0-8a2e-8e03d1396f56"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{dppsUrl}}/api/payments/upload",
-              "host": [
-                "{{dppsUrl}}"
-              ],
-              "path": [
-                "api",
-                "payments",
-                "upload"
-              ]
-            },
-            "description": "Generated from cURL: curl -X POST http://localhost/api/payments/upload \\\r\n  -H \"Authorization: Bearer $TOKEN\" \\\r\n  -F \"file=@payments.csv\""
-          },
-          "response": []
-        },
-        {
-          "name": "GetPayments",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{Token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{dppsUrl}}/api/payments?from=2026-02-20T12:00&to=2026-02-27T12:00",
-              "host": [
-                "{{dppsUrl}}"
-              ],
-              "path": [
-                "api",
-                "payments"
-              ],
-              "query": [
-                {
-                  "key": "from",
-                  "value": "2026-02-20T12:00"
-                },
-                {
-                  "key": "to",
-                  "value": "2026-02-27T12:00"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "DeletePayment(time range)",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{Token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{dppsUrl}}/api/payments?from=2026-02-23T00:00&to=2026-02-24T00:00",
-              "host": [
-                "{{dppsUrl}}"
-              ],
-              "path": [
-                "api",
-                "payments"
-              ],
-              "query": [
-                {
-                  "key": "from",
-                  "value": "2026-02-23T00:00"
-                },
-                {
-                  "key": "to",
-                  "value": "2026-02-24T00:00"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "DeleteAllPayments",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{Token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{dppsUrl}}/api/payments?from=2026-02-23T00:00&to=2026-02-24T00:00",
-              "host": [
-                "{{dppsUrl}}"
-              ],
-              "path": [
-                "api",
-                "payments"
-              ],
-              "query": [
-                {
-                  "key": "from",
-                  "value": "2026-02-23T00:00"
-                },
-                {
-                  "key": "to",
-                  "value": "2026-02-24T00:00"
-                }
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Statistics",
-      "item": [
-        {
-          "name": "ByDate(General,Value)",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{Token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{dppsUrl}}/api/statistics?aggregation=BY_DATE&metrics=GENERAL&metrics=VALUE",
-              "host": [
-                "{{dppsUrl}}"
-              ],
-              "path": [
-                "api",
-                "statistics"
-              ],
-              "query": [
-                {
-                  "key": "aggregation",
-                  "value": "BY_DATE"
-                },
-                {
-                  "key": "metrics",
-                  "value": "GENERAL"
-                },
-                {
-                  "key": "metrics",
-                  "value": "VALUE"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "By Connection (General)",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{Token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{dppsUrl}}/api/statistics?aggregation=BY_CONNECTION&metrics=GENERAL",
-              "host": [
-                "{{dppsUrl}}"
-              ],
-              "path": [
-                "api",
-                "statistics"
-              ],
-              "query": [
-                {
-                  "key": "aggregation",
-                  "value": "BY_CONNECTION"
-                },
-                {
-                  "key": "metrics",
-                  "value": "GENERAL"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "By Bank (all metrics)",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{Token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{dppsUrl}}/api/statistics?aggregation=BY_BANK&metrics=GENERAL&metrics=VALUE&metrics=DATETIME",
-              "host": [
-                "{{dppsUrl}}"
-              ],
-              "path": [
-                "api",
-                "statistics"
-              ],
-              "query": [
-                {
-                  "key": "aggregation",
-                  "value": "BY_BANK"
-                },
-                {
-                  "key": "metrics",
-                  "value": "GENERAL"
-                },
-                {
-                  "key": "metrics",
-                  "value": "VALUE"
-                },
-                {
-                  "key": "metrics",
-                  "value": "DATETIME"
-                }
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "GetToken",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "let response = pm.response.json();\r",
-              "pm.environment.set(\"Token\", response.access_token);"
-            ],
-            "type": "text/javascript",
-            "packages": {},
-            "requests": {}
-          }
-        },
-        {
-          "listen": "prerequest",
-          "script": {
-            "packages": {},
-            "type": "text/javascript"
-          }
-        }
-      ],
-      "request": {
-        "method": "POST",
-        "header": [],
-        "body": {
-          "mode": "urlencoded",
-          "urlencoded": [
-            {
-              "key": "client_id",
-              "value": "payment-client",
-              "type": "text",
-              "uuid": "2f9fb17b-f349-4515-b884-d4bdf5da719e"
-            },
-            {
-              "key": "username",
-              "value": "user",
-              "type": "text",
-              "uuid": "0196ca0f-d225-4da7-907d-9318b676a3c3"
-            },
-            {
-              "key": "password",
-              "value": "user",
-              "type": "text",
-              "uuid": "77ababcd-c895-4f91-b740-f5aec06051ae"
-            },
-            {
-              "key": "grant_type",
-              "value": "password",
-              "type": "text",
-              "uuid": "22ffe53e-4e7b-4b7f-bcef-0e8d32dea332"
-            }
-          ]
-        },
-        "url": {
-          "raw": "{{keycloakUrl}}/realms/payment-system/protocol/openid-connect/token",
-          "host": [
-            "{{keycloakUrl}}"
-          ],
-          "path": [
-            "realms",
-            "payment-system",
-            "protocol",
-            "openid-connect",
-            "token"
-          ]
-        }
-      },
-      "response": []
-    }
-  ]
+	"info": {
+		"_postman_id": "b99dc6ad-de65-469a-85fb-0f133926dd7a",
+		"name": "Dpps",
+		"description": "Distributed Payment Processing System API. Select the 'Local' environment and run 'Auth / Get token (user)' first: it stores the access token used by all other requests. The collection can be run as a whole (Runner or Newman); the last folder switches to the read-only user and checks that writes are forbidden.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{Token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Get token (user)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+									"pm.environment.set(\"Token\", pm.response.json().access_token);"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "client_id",
+									"value": "payment-client",
+									"type": "text"
+								},
+								{
+									"key": "grant_type",
+									"value": "password",
+									"type": "text"
+								},
+								{
+									"key": "username",
+									"value": "user",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "user",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{keycloakUrl}}/realms/payment-system/protocol/openid-connect/token",
+							"host": [
+								"{{keycloakUrl}}"
+							],
+							"path": [
+								"realms",
+								"payment-system",
+								"protocol",
+								"openid-connect",
+								"token"
+							]
+						},
+						"description": "Full access: realm roles payments-read and payments-write."
+					}
+				}
+			]
+		},
+		{
+			"name": "Payments",
+			"item": [
+				{
+					"name": "Delete all payments",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/payments",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"payments"
+							]
+						},
+						"description": "No bounds: deletes every payment."
+					}
+				},
+				{
+					"name": "Upload payments",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"All 15 rows stored\", () => pm.expect(pm.response.json().successfullyLoaded).to.eql(15));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/payments/upload",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"payments",
+								"upload"
+							]
+						},
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "test-data/payments-main.csv"
+								}
+							]
+						},
+						"description": "15 valid payments on 2026-02-20 and 2026-02-21."
+					}
+				},
+				{
+					"name": "Upload payments with errors",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"Valid rows stored, invalid ones reported\", () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.successfullyLoaded).to.eql(3);",
+									"    pm.expect(body.rejected).to.eql(7);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/payments/upload",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"payments",
+								"upload"
+							]
+						},
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "test-data/payments-with-errors.csv"
+								}
+							]
+						},
+						"description": "3 valid rows; the invalid ones are skipped and reported per problem."
+					}
+				},
+				{
+					"name": "Get payments (one week)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/payments?from=2026-02-20T00:00&to=2026-02-26T23:59:59",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"payments"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "2026-02-20T00:00"
+								},
+								{
+									"key": "to",
+									"value": "2026-02-26T23:59:59"
+								}
+							]
+						},
+						"description": "Both bounds are inclusive; the range may span at most 7 days."
+					}
+				},
+				{
+					"name": "Delete payments (time range)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/payments?from=2026-02-22T00:00&to=2026-02-22T23:59:59",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"payments"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "2026-02-22T00:00"
+								},
+								{
+									"key": "to",
+									"value": "2026-02-22T23:59:59"
+								}
+							]
+						},
+						"description": "Give both bounds or neither."
+					}
+				}
+			],
+			"description": "Runs top to bottom: start from an empty store, upload, read, delete a range."
+		},
+		{
+			"name": "Statistics",
+			"item": [
+				{
+					"name": "By date (GENERAL, VALUE)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/statistics?aggregation=BY_DATE&metrics=GENERAL&metrics=VALUE",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"statistics"
+							],
+							"query": [
+								{
+									"key": "aggregation",
+									"value": "BY_DATE"
+								},
+								{
+									"key": "metrics",
+									"value": "GENERAL"
+								},
+								{
+									"key": "metrics",
+									"value": "VALUE"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "By bank (all metrics)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/statistics?aggregation=BY_BANK&metrics=GENERAL,VALUE,DATETIME",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"statistics"
+							],
+							"query": [
+								{
+									"key": "aggregation",
+									"value": "BY_BANK"
+								},
+								{
+									"key": "metrics",
+									"value": "GENERAL,VALUE,DATETIME"
+								}
+							]
+						},
+						"description": "Each payment counts as -amount for the sender and +amount for the receiver; sum is the net position."
+					}
+				},
+				{
+					"name": "By connection (GENERAL)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/statistics?aggregation=BY_CONNECTION&metrics=GENERAL",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"statistics"
+							],
+							"query": [
+								{
+									"key": "aggregation",
+									"value": "BY_CONNECTION"
+								},
+								{
+									"key": "metrics",
+									"value": "GENERAL"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "By date within a time range",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/statistics?aggregation=BY_DATE&metrics=GENERAL,VALUE&from=2026-02-21T00:00&to=2026-02-21T11:59:59",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"statistics"
+							],
+							"query": [
+								{
+									"key": "aggregation",
+									"value": "BY_DATE"
+								},
+								{
+									"key": "metrics",
+									"value": "GENERAL,VALUE"
+								},
+								{
+									"key": "from",
+									"value": "2026-02-21T00:00"
+								},
+								{
+									"key": "to",
+									"value": "2026-02-21T11:59:59"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Read-only user",
+			"description": "Switches to the viewer (role payments-read only): reading works, writing is forbidden.",
+			"item": [
+				{
+					"name": "Get token (viewer)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+									"pm.environment.set(\"Token\", pm.response.json().access_token);"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "client_id",
+									"value": "payment-client",
+									"type": "text"
+								},
+								{
+									"key": "grant_type",
+									"value": "password",
+									"type": "text"
+								},
+								{
+									"key": "username",
+									"value": "viewer",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "viewer",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{keycloakUrl}}/realms/payment-system/protocol/openid-connect/token",
+							"host": [
+								"{{keycloakUrl}}"
+							],
+							"path": [
+								"realms",
+								"payment-system",
+								"protocol",
+								"openid-connect",
+								"token"
+							]
+						},
+						"description": "Read-only: realm role payments-read."
+					}
+				},
+				{
+					"name": "Statistics as viewer (200)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/statistics?aggregation=BY_DATE&metrics=GENERAL&metrics=VALUE",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"statistics"
+							],
+							"query": [
+								{
+									"key": "aggregation",
+									"value": "BY_DATE"
+								},
+								{
+									"key": "metrics",
+									"value": "GENERAL"
+								},
+								{
+									"key": "metrics",
+									"value": "VALUE"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get payments as viewer (200)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/payments?from=2026-02-20T00:00&to=2026-02-26T23:59:59",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"payments"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "2026-02-20T00:00"
+								},
+								{
+									"key": "to",
+									"value": "2026-02-26T23:59:59"
+								}
+							]
+						},
+						"description": "Both bounds are inclusive; the range may span at most 7 days."
+					}
+				},
+				{
+					"name": "Upload as viewer (403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 403\", () => pm.response.to.have.status(403));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/payments/upload",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"payments",
+								"upload"
+							]
+						},
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "test-data/payments-main.csv"
+								}
+							]
+						},
+						"description": "15 valid payments on 2026-02-20 and 2026-02-21."
+					}
+				},
+				{
+					"name": "Delete as viewer (403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status is 403\", () => pm.response.to.have.status(403));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{dppsUrl}}/api/payments",
+							"host": [
+								"{{dppsUrl}}"
+							],
+							"path": [
+								"api",
+								"payments"
+							]
+						},
+						"description": "No bounds: deletes every payment."
+					}
+				}
+			]
+		}
+	]
 }
